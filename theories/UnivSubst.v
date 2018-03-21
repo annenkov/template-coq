@@ -16,7 +16,7 @@ Set Asymmetric Patterns.
 
 Definition subst_instance_level u l :=
   match l with
-  | univ.Level.lProp | univ.Level.lSet | univ.Level.Level _ => l
+  | univ.Level.lSProp | univ.Level.lProp | univ.Level.lSet | univ.Level.Level _ => l
   | univ.Level.Var n => List.nth n u univ.Level.lProp
   end.
 
@@ -42,15 +42,15 @@ Fixpoint subst_instance_constr (u : universe_instance) (c : term) :=
   | tInd i u' => tInd i (subst_instance_instance u u')
   | tConstruct ind k u' => tConstruct ind k (subst_instance_instance u u')
   | tEvar ev args => tEvar ev (List.map (subst_instance_constr u) args)
-  | tLambda na T M => tLambda na (subst_instance_constr u T) (subst_instance_constr u M)
+  | tLambda na r T M => tLambda na r (subst_instance_constr u T) (subst_instance_constr u M)
   | tApp f v => tApp (subst_instance_constr u f) (List.map (subst_instance_constr u) v)
-  | tProd na A B => tProd na (subst_instance_constr u A) (subst_instance_constr u B)
+  | tProd na r A B => tProd na r (subst_instance_constr u A) (subst_instance_constr u B)
   | tCast c kind ty => tCast (subst_instance_constr u c) kind (subst_instance_constr u ty)
-  | tLetIn na b ty b' => tLetIn na (subst_instance_constr u b) (subst_instance_constr u ty)
+  | tLetIn na r b ty b' => tLetIn na r (subst_instance_constr u b) (subst_instance_constr u ty)
                                 (subst_instance_constr u b')
-  | tCase ind p c brs =>
+  | tCase ind r p c brs =>
     let brs' := List.map (on_snd (subst_instance_constr u)) brs in
-    tCase ind (subst_instance_constr u p) (subst_instance_constr u c) brs'
+    tCase ind r (subst_instance_constr u p) (subst_instance_constr u c) brs'
   | tProj p c => tProj p (subst_instance_constr u c)
   | tFix mfix idx =>
     let mfix' := List.map (map_def (subst_instance_constr u)) mfix in

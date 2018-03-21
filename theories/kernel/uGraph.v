@@ -34,7 +34,7 @@ Definition add_node (l : Level.t) (G : t) : t
   := let levels := LevelSet.add l (fst G) in
      let constraints :=
          match l with
-         | Level.lProp | Level.lSet => snd G (* supposed to be yet here *)
+         |Level.lSProp | Level.lProp | Level.lSet => snd G (* supposed to be yet here *)
          | Level.Var _ => Constraint.add (Level.set, ConstraintType.Le, l) (snd G)
          | Level.Level _ => Constraint.add (Level.set, ConstraintType.Lt, l) (snd G)
          end in

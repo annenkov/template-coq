@@ -3,28 +3,28 @@ open Names
 type ('a,'b) sum =
   Left of 'a | Right of 'b
 
-type ('term, 'name, 'nat) adef = { adname : 'name; adtype : 'term; adbody : 'term; rarg : 'nat }
+type ('term, 'name, 'relevance, 'nat) adef = { adname : 'name; adrelev : 'relevance ; adtype : 'term; adbody : 'term; rarg : 'nat }
 
-type ('term, 'name, 'nat) amfixpoint = ('term, 'name, 'nat) adef list
+type ('term, 'name, 'relevance, 'nat) amfixpoint = ('term, 'name, 'relevance, 'nat) adef list
 
-type ('term, 'nat, 'ident, 'name, 'quoted_sort, 'cast_kind, 'kername, 'inductive, 'universe_instance, 'projection) structure_of_term =
+type ('term, 'nat, 'ident, 'name, 'relevance, 'quoted_sort, 'cast_kind, 'kername, 'inductive, 'universe_instance, 'projection) structure_of_term =
   | ACoq_tRel of 'nat
   | ACoq_tVar of 'ident
   | ACoq_tMeta of 'nat
   | ACoq_tEvar of 'nat * 'term list
   | ACoq_tSort of 'quoted_sort
   | ACoq_tCast of 'term * 'cast_kind * 'term
-  | ACoq_tProd of 'name * 'term * 'term
-  | ACoq_tLambda of 'name * 'term * 'term
-  | ACoq_tLetIn of 'name * 'term * 'term * 'term
+  | ACoq_tProd of 'name * 'relevance * 'term * 'term
+  | ACoq_tLambda of 'name * 'relevance * 'term * 'term
+  | ACoq_tLetIn of 'name * 'relevance * 'term * 'term * 'term
   | ACoq_tApp of 'term * 'term list
   | ACoq_tConst of 'kername * 'universe_instance
   | ACoq_tInd of 'inductive * 'universe_instance
   | ACoq_tConstruct of 'inductive * 'nat * 'universe_instance
-  | ACoq_tCase of ('inductive * 'nat) * 'term * 'term * ('nat * 'term) list
+  | ACoq_tCase of ('inductive * 'nat) *'relevance * 'term * 'term * ('nat * 'term) list
   | ACoq_tProj of 'projection * 'term
-  | ACoq_tFix of ('term, 'name, 'nat) amfixpoint * 'nat
-  | ACoq_tCoFix of ('term, 'name, 'nat) amfixpoint * 'nat
+  | ACoq_tFix of ('term, 'name, 'relevance, 'nat) amfixpoint * 'nat
+  | ACoq_tCoFix of ('term, 'name, 'relevance, 'nat) amfixpoint * 'nat
 
 module type Quoter = sig
   type t
@@ -33,6 +33,7 @@ module type Quoter = sig
   type quoted_int
   type quoted_bool
   type quoted_name
+  type quoted_relevance
   type quoted_sort
   type quoted_cast_kind
   type quoted_kernel_name
@@ -64,6 +65,7 @@ module type Quoter = sig
 
   val quote_ident : Id.t -> quoted_ident
   val quote_name : Name.t -> quoted_name
+  val quote_relevance : Sorts.relevance -> quoted_relevance
   val quote_int : int -> quoted_int
   val quote_bool : bool -> quoted_bool
   val quote_sort : Sorts.t -> quoted_sort
@@ -99,18 +101,18 @@ module type Quoter = sig
   val mkEvar : quoted_int -> t array -> t
   val mkSort : quoted_sort -> t
   val mkCast : t -> quoted_cast_kind -> t -> t
-  val mkProd : quoted_name -> t -> t -> t
-  val mkLambda : quoted_name -> t -> t -> t
-  val mkLetIn : quoted_name -> t -> t -> t -> t
+  val mkProd : quoted_name -> quoted_relevance -> t -> t -> t
+  val mkLambda : quoted_name -> quoted_relevance -> t -> t -> t
+  val mkLetIn : quoted_name -> quoted_relevance -> t -> t -> t -> t
   val mkApp : t -> t array -> t
   val mkConst : quoted_kernel_name -> quoted_univ_instance -> t
   val mkInd : quoted_inductive -> quoted_univ_instance -> t
   val mkConstruct : quoted_inductive * quoted_int -> quoted_univ_instance -> t
-  val mkCase : (quoted_inductive * quoted_int) -> quoted_int list -> t -> t ->
+  val mkCase : (quoted_inductive * quoted_int) -> quoted_relevance -> quoted_int list -> t -> t ->
                t list -> t
   val mkProj : quoted_proj -> t -> t
-  val mkFix : (quoted_int array * quoted_int) * (quoted_name array * t array * t array) -> t
-  val mkCoFix : quoted_int * (quoted_name array * t array * t array) -> t
+  val mkFix : (quoted_int array * quoted_int) * (quoted_name array * quoted_relevance array * t array * t array) -> t
+  val mkCoFix : quoted_int * (quoted_name array * quoted_relevance array * t array * t array) -> t
 
   val mk_one_inductive_body : quoted_ident * t (* ind type *) * quoted_sort_family list
                                  * (quoted_ident * t (* constr type *) * quoted_int) list
@@ -135,6 +137,7 @@ module type Quoter = sig
 
   val unquote_ident : quoted_ident -> Id.t
   val unquote_name : quoted_name -> Name.t
+  val unquote_relevance : quoted_relevance -> Sorts.relevance
   val unquote_int :  quoted_int -> int
   val unquote_bool : quoted_bool -> bool
   (* val unquote_sort : quoted_sort -> Sorts.t *)
@@ -148,7 +151,7 @@ module type Quoter = sig
   val print_term : t -> Pp.std_ppcmds
 
   (* val representsIndConstuctor : quoted_inductive -> Term.constr -> bool *)
-  val inspectTerm : t -> (t, quoted_int, quoted_ident, quoted_name, quoted_sort, quoted_cast_kind, quoted_kernel_name, quoted_inductive, quoted_univ_instance, quoted_proj) structure_of_term
+  val inspectTerm : t -> (t, quoted_int, quoted_ident, quoted_name, quoted_relevance, quoted_sort, quoted_cast_kind, quoted_kernel_name, quoted_inductive, quoted_univ_instance, quoted_proj) structure_of_term
 end
 
 module Reify(Q : Quoter) : sig

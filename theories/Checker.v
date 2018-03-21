@@ -63,7 +63,7 @@ Section Reduce.
       end
     else ret (t, stack)
 
-  | tLetIn _ b _ c =>
+  | tLetIn _ _ b _ c =>
     if RedFlags.zeta flags then
       reduce_stack Γ n (subst0 b c) stack
     else ret (t, stack)
@@ -78,7 +78,7 @@ Section Reduce.
 
   | tApp f args => reduce_stack Γ n f (args ++ stack)
 
-  | tLambda na ty b =>
+  | tLambda na r ty b =>
     if RedFlags.beta flags then
       match stack with
       | a :: args' =>
@@ -86,7 +86,7 @@ Section Reduce.
         a' <- reduce_stack Γ n a [] ;;
         reduce_stack Γ n (subst0 (zip a') b) args'
       | _ => b' <- reduce_stack (Γ ,, vass na ty) n b stack ;;
-               ret (tLambda na ty (zip b'), stack)
+               ret (tLambda na r ty (zip b'), stack)
       end
     else ret (t, stack)
 
@@ -105,19 +105,19 @@ Section Reduce.
       end
     else ret (t, stack)
 
-  | tProd na b t =>
+  | tProd na r b t =>
     b' <- reduce_stack Γ n b [] ;;
     t' <- reduce_stack (Γ ,, vass na (zip b')) n t [] ;;
-    ret (tProd na (zip b') (zip t'), stack)
+    ret (tProd na r (zip b') (zip t'), stack)
 
   | tCast c _ _ => reduce_stack Γ n c stack
 
-  | tCase (ind, par) p c brs =>
+  | tCase (ind, par) r p c brs =>
     if RedFlags.iota flags then
       c' <- reduce_stack Γ n c [] ;;
       match c' with
       | (tConstruct ind c _, args) => reduce_stack Γ n (iota_red par c args brs) stack
-      | _ => ret (tCase (ind, par) p (zip c') brs, stack)
+      | _ => ret (tCase (ind, par) r p (zip c') brs, stack)
       end
     else ret (t, stack)
 
@@ -142,19 +142,19 @@ Section Reduce.
     match t with
     | tRel i => t
     | tEvar ev args => tEvar ev (List.map (f Γ) args)
-    | tLambda na T M => tLambda na (f Γ T) (f Γ M)
+    | tLambda na r T M => tLambda na r (f Γ T) (f Γ M)
     | tApp u v => tApp (f Γ u) (List.map (f Γ) v)
-    | tProd na A B =>
+    | tProd na r A B =>
       let A' := f Γ A in
-      tProd na A' (f (Γ ,, vass na A') B)
+      tProd na r A' (f (Γ ,, vass na A') B)
     | tCast c kind t => tCast (f Γ c) kind (f Γ t)
-    | tLetIn na b t b' =>
+    | tLetIn na r b t b' =>
       let b' := f Γ b in
       let t' := f Γ t in
-      tLetIn na b' t' (f (Γ ,, vdef na b' t') b')
-    | tCase ind p c brs =>
+      tLetIn na r b' t' (f (Γ ,, vdef na b' t') b')
+    | tCase ind r p c brs =>
       let brs' := List.map (on_snd (f Γ)) brs in
-      tCase ind (f Γ p) (f Γ c) brs'
+      tCase ind r (f Γ p) (f Γ c) brs'
     | tProj p c => tProj p (f Γ c)
     | tFix mfix idx =>
       let Γ' := fix_decls mfix ++ Γ in
@@ -217,10 +217,10 @@ Section Conversion.
   Definition reducible_head n Γ c l :=
     match c with
     | tFix mfix idx => unfold_one_fix n Γ mfix idx l
-    | tCase ind' p' c' brs =>
+    | tCase ind' r' p' c' brs =>
       match unfold_one_case n Γ c' with
       | None => None
-      | Some c' => Some (tCase ind' p' c' brs)
+      | Some c' => Some (tCase ind' r' p' c' brs)
       end
     | tConst c _ => (* TODO Universes *)
       match lookup_env (fst Σ) c with
@@ -305,20 +305,20 @@ Section Conversion.
           end
         end
 
-    | tLambda na b t, tLambda _ b' t' =>
+    | tLambda na _ b t, tLambda _ _ b' t' =>
       cnv <- isconv n Conv Γ b [] b' [] ;;
       if (cnv : bool) then
         isconv n Conv (Γ ,, vass na b) t [] t' []
       else ret false
 
-    | tProd na b t, tProd _ b' t' =>
+    | tProd na _ b t, tProd _ _ b' t' =>
       cnv <- isconv n Conv Γ b [] b' [] ;;
       if (cnv : bool) then
         isconv n leq (Γ ,, vass na b) t [] t' []
       else ret false
 
-    | tCase (ind, par) p c brs,
-      tCase (ind',par') p' c' brs' => (* Hnf did not reduce, maybe delta needed in c *)
+    | tCase (ind, par) r p c brs,
+      tCase (ind',par') r' p' c' brs' => (* Hnf did not reduce, maybe delta needed in c *)
       if eq_term (snd Σ) p p' && eq_term (snd Σ) c c'
       && forallb2 (fun '(a, b) '(a', b') => eq_term (snd Σ) b b') brs brs' then
         ret true
@@ -327,7 +327,7 @@ Section Conversion.
         c'red <- reduce_stack_term RedFlags.default (fst Σ) Γ n c' ;;
         if eq_term (snd Σ) cred c && eq_term (snd Σ) c'red c' then ret false
         else
-          isconv n leq Γ (tCase (ind, par) p cred brs) l1 (tCase (ind, par) p c'red brs') l2
+          isconv n leq Γ (tCase (ind, par) r p cred brs) l1 (tCase (ind, par) r' p c'red brs') l2
 
     | tProj p c, tProj p' c' => on_cond (eq_projection p p' && eq_term (snd Σ) c c')
 
@@ -397,6 +397,7 @@ Definition string_of_list {A} (f : A -> string) (l : list A) : string :=
 
 Definition string_of_level (l : Level.t) : string :=
   match l with
+  | Level.lSProp => "sProp"
   | Level.lProp => "Prop"
   | Level.lSet => "Set"
   | Level.Level s => s
@@ -417,6 +418,12 @@ Definition string_of_name (na : name) :=
 Definition string_of_universe_instance u :=
   string_of_list string_of_level u.
 
+Definition string_of_relavance (r : relevance) :=
+  match r with
+  | Relevant => "Relevant"
+  | Irrelevant => "Irrelevant"
+  end.
+
 Fixpoint string_of_term (t : term) :=
   match t with
   | tRel n => "Rel(" ++ string_of_nat n ++ ")"
@@ -426,12 +433,22 @@ Fixpoint string_of_term (t : term) :=
   | tSort s => "Sort(" ++ string_of_sort s ++ ")"
   | tCast c k t => "Cast(" ++ string_of_term c ++ (* TODO *) ","
                            ++ string_of_term t ++ ")"
-  | tProd na b t => "Prod(" ++ string_of_name na ++ "," ++
-                            string_of_term b ++ "," ++ string_of_term t ++ ")"
-  | tLambda na b t => "Lambda(" ++ string_of_name na ++ "," ++ string_of_term b
-                                ++ "," ++ string_of_term t ++ ")"
-  | tLetIn na b t' t => "LetIn(" ++ string_of_name na ++ "," ++ string_of_term b
-                                 ++ "," ++ string_of_term t' ++ "," ++ string_of_term t ++ ")"
+  | tProd na r b t => "Prod(" ++
+                              string_of_name na ++ "," ++
+                              string_of_relavance r ++ "," ++
+                              string_of_term b ++ "," ++
+                              string_of_term t ++ ")"
+  | tLambda na r b t => "Lambda(" ++
+                                string_of_name na ++ "," ++
+                                string_of_relavance r ++ "," ++
+                                string_of_term b ++ "," ++
+                                string_of_term t ++ ")"
+  | tLetIn na r b t' t => "LetIn(" ++
+                                 string_of_name na ++ "," ++
+                                 string_of_relavance r ++ "," ++
+                                 string_of_term b ++ "," ++
+                                 string_of_term t' ++ "," ++
+                                 string_of_term t ++ ")"
   | tApp f l => "App(" ++ string_of_term f ++ "," ++ string_of_list string_of_term l ++ ")"
   | tConst c u => "Const(" ++ c ++ "," ++ string_of_universe_instance u ++ ")"
   | tInd (mkInd c i) u => "Ind(" ++ c ++ "," ++ string_of_int i ++ ","
@@ -439,8 +456,11 @@ Fixpoint string_of_term (t : term) :=
   | tConstruct (mkInd c i) n u => "Construct(" ++ c ++ "," ++ string_of_int i ++ "," ++
                                                string_of_int n ++ "," ++
                                                string_of_universe_instance u ++ ")"
-  | tCase (ind, i) t p brs =>
-    "Case(" ++ string_of_term t ++ "," ++ string_of_term p ++ "," ++
+  | tCase (ind, i) r t p brs =>
+    "Case(" ++
+            string_of_term t ++ "," ++
+            string_of_relavance r ++ "," ++
+            string_of_term p ++ "," ++
             string_of_list (fun b => string_of_term (snd b)) brs ++ ")"
   | tProj p c =>
     "Proj(" ++ "TODO" ++ "," ++ string_of_term c ++ ")"
@@ -537,7 +557,7 @@ Section Typecheck.
   Definition reduce_to_prod Γ (t : term) : typing_result (term * term) :=
     t' <- hnf_stack Γ t ;;
     match t' with
-    | (tProd _ a b,[]) => ret (a, b)
+    | (tProd _ _ a b,[]) => ret (a, b)
     | _ => raise (NotAProduct t (zip t'))
     end.
 
@@ -662,21 +682,21 @@ Section Typecheck2.
       infer_cumul infer Γ c t ;;
       ret t
 
-    | tProd n t b =>
+    | tProd n _ t b =>
       s1 <- infer_type infer Γ t ;;
       s2 <- infer_type infer (Γ ,, vass n t) b ;;
       ret (tSort (Universe.sup s1 s2))
 
-    | tLambda n t b =>
+    | tLambda n r t b =>
       infer_type infer Γ t ;;
       t2 <- infer (Γ ,, vass n t) b ;;
-      ret (tProd n t t2)
+      ret (tProd n r t t2)
 
-    | tLetIn n b b_ty b' =>
+    | tLetIn n r b b_ty b' =>
       infer_type infer Γ b_ty ;;
        infer_cumul infer Γ b b_ty ;;
        b'_ty <- infer (Γ ,, vdef n b b_ty) b' ;;
-       ret (tLetIn n b b_ty b'_ty)
+       ret (tLetIn n r b b_ty b'_ty)
 
     | tApp t l =>
       t_ty <- infer Γ t ;;
@@ -700,7 +720,7 @@ Section Typecheck2.
       check_consistent_constraints cstrs;;
       ret ty
 
-    | tCase (ind, par) p c brs =>
+    | tCase (ind, par) _ p c brs =>
       ty <- infer Γ c ;;
       indargs <- reduce_to_ind (fst Σ) Γ ty ;;
       (** TODO check branches *)
@@ -755,11 +775,11 @@ Section Typecheck2.
       exists s'', reduce_to_sort (fst Σ) Γ t = Checked s''
              /\ check_leq (snd Σ) s'' s' = true.
 
-  Conjecture cumul_reduce_to_product : forall Γ t na a b,
-      Σ ;;; Γ |- t <= tProd na a b ->
+  Conjecture cumul_reduce_to_product : forall Γ t na a b r,
+      Σ ;;; Γ |- t <= tProd na r a b ->
       exists a' b',
         reduce_to_prod (fst Σ) Γ t = Checked (a', b') /\
-        cumul Σ Γ (tProd na a' b') (tProd na a b).
+        cumul Σ Γ (tProd na r a' b') (tProd na r a b).
 
   Conjecture cumul_reduce_to_ind : forall Γ t i u args,
       Σ ;;; Γ |- t <= mkApps (tInd i u) args <->
@@ -943,6 +963,10 @@ Section Typecheck2.
       destruct H.
       intros [= <-]. constructor.
 
+    - admit.
+    - admit.
+    - admit.
+      
     - admit.
     - admit.
 

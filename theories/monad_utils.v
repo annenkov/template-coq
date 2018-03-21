@@ -1,10 +1,16 @@
 Require Import List.
 
 
-Class Monad@{d c} (m : Type@{d} -> Type@{c}) : Type :=
-{ ret : forall {t : Type@{d}}, t -> m t
-; bind : forall {t u : Type@{d}}, m t -> (t -> m u) -> m u
+(* Removed universe annotations, otherwise it doesn't compile whith the error:
+ "Universe c already exists" *)
+Class Monad (m : Type -> Type) : Type :=
+{ ret : forall {t : Type}, t -> m t
+; bind : forall {t u : Type}, m t -> (t -> m u) -> m u
 }.
+(* Class Monad@{d c} (m : Type@{d} -> Type@{c}) : Type := *)
+(* { ret : forall {t : Type@{d}}, t -> m t *)
+(* ; bind : forall {t u : Type@{d}}, m t -> (t -> m u) -> m u *)
+(* }. *)
 
 Class MonadExc E (m : Type -> Type) : Type :=
 { raise : forall {T}, E -> m T

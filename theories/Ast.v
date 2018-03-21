@@ -43,7 +43,7 @@ From Template Require Export univ uGraph.
 Definition ident := string. (* e.g. nat *)
 Definition kername := string. (* e.g. Coq.Init.Datatypes.nat *)
 
-Inductive sort_family : Set := InProp | InSet | InType.
+Inductive sort_family : Set := InSProp | InProp | InSet | InType.
 
 Inductive name : Set :=
 | nAnon
@@ -61,9 +61,15 @@ Arguments mkInd _%string _%nat.
 
 Definition projection : Set := inductive * nat (* params *) * nat (* argument *).
 
+Inductive relevance : Set :=
+  Relevant
+| Irrelevant.
+
+
 (** Parametrized by term because term is not yet defined *)
 Record def (term : Set) : Set := mkdef {
   dname : name; (* the name (note, this may mention other definitions **)
+  drelev : relevance;
   dtype : term;
   dbody : term; (* the body (a lambda term) **)
   rarg  : nat  (* the index of the recursive argument, 0 for cofixpoints **) }.
@@ -78,14 +84,14 @@ Inductive term : Set :=
 | tEvar      : nat -> list term -> term
 | tSort      : universe -> term
 | tCast      : term -> cast_kind -> term -> term
-| tProd      : name -> term (* the type *) -> term -> term
-| tLambda    : name -> term (* the type *) -> term -> term
-| tLetIn     : name -> term (* the term *) -> term (* the type *) -> term -> term
+| tProd      : name -> relevance -> term (* the type *) -> term -> term
+| tLambda    : name -> relevance -> term (* the type *) -> term -> term
+| tLetIn     : name -> relevance -> term (* the term *) -> term (* the type *) -> term -> term
 | tApp       : term -> list term -> term
 | tConst     : kername -> universe_instance -> term
 | tInd       : inductive -> universe_instance -> term
 | tConstruct : inductive -> nat -> universe_instance -> term
-| tCase      : (inductive * nat) (* # of parameters *) -> term (* type info *)
+| tCase      : (inductive * nat) (* # of parameters *) -> relevance -> term (* type info *)
                -> term (* discriminee *) -> list (nat * term) (* branches *) -> term
 | tProj      : projection -> term -> term
 | tFix       : mfixpoint term -> nat -> term

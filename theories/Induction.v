@@ -14,6 +14,7 @@ Set Asymmetric Patterns.
   in the term syntax (in evar, applications, branches of cases and (co-)fixpoints. *)
 
 Arguments dname {term} _.
+Arguments drelev {term} _.
 Arguments dtype {term} _.
 Arguments dbody {term} _.
 Arguments rarg {term} _.
@@ -22,7 +23,7 @@ Definition on_snd {A B} (f : B -> B) (p : A * B) :=
   (fst p, f (snd p)).
 
 Definition map_def {term : Set} (f : term -> term) (d : def term) :=
-  {| dname := d.(dname); dtype := f d.(dtype); dbody := f d.(dbody); rarg := d.(rarg) |}.
+  {| dname := d.(dname); drelev := d.(drelev); dtype := f d.(dtype); dbody := f d.(dbody); rarg := d.(rarg) |}.
 
 Definition test_snd {A B} (f : B -> bool) (p : A * B) :=
   f (snd p).
@@ -94,17 +95,17 @@ Lemma term_forall_list_ind :
     (forall (n : nat) (l : list term), Forall P l -> P (tEvar n l)) ->
     (forall s, P (tSort s)) ->
     (forall t : term, P t -> forall (c : cast_kind) (t0 : term), P t0 -> P (tCast t c t0)) ->
-    (forall (n : name) (t : term), P t -> forall t0 : term, P t0 -> P (tProd n t t0)) ->
-    (forall (n : name) (t : term), P t -> forall t0 : term, P t0 -> P (tLambda n t t0)) ->
-    (forall (n : name) (t : term),
-        P t -> forall t0 : term, P t0 -> forall t1 : term, P t1 -> P (tLetIn n t t0 t1)) ->
+    (forall (n : name) (r:relevance) (t : term), P t -> forall t0 : term, P t0 -> P (tProd n r t t0)) ->
+    (forall (n : name) (r:relevance) (t : term), P t -> forall t0 : term, P t0 -> P (tLambda n r t t0)) ->
+    (forall (n : name) (r:relevance) (t : term),
+        P t -> forall t0 : term, P t0 -> forall t1 : term, P t1 -> P (tLetIn n r t t0 t1)) ->
     (forall t : term, P t -> forall l : list term, Forall P l -> P (tApp t l)) ->
     (forall (s : String.string) (u : list Level.t), P (tConst s u)) ->
     (forall (i : inductive) (u : list Level.t), P (tInd i u)) ->
     (forall (i : inductive) (n : nat) (u : list Level.t), P (tConstruct i n u)) ->
-    (forall (p : inductive * nat) (t : term),
+    (forall (p : inductive * nat) (r:relevance) (t : term),
         P t -> forall t0 : term, P t0 -> forall l : list (nat * term),
-            tCaseBrsProp P l -> P (tCase p t t0 l)) ->
+            tCaseBrsProp P l -> P (tCase p r t t0 l)) ->
     (forall (s : projection) (t : term), P t -> P (tProj s t)) ->
     (forall (m : mfixpoint term) (n : nat), tFixProp P m -> P (tFix m n)) ->
     (forall (m : mfixpoint term) (n : nat), tFixProp P m -> P (tCoFix m n)) ->

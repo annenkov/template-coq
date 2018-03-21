@@ -18,14 +18,14 @@ Fixpoint lift n k t : term :=
   match t with
   | tRel i => if Nat.leb k i then tRel (n + i) else tRel i
   | tEvar ev args => tEvar ev (List.map (lift n k) args)
-  | tLambda na T M => tLambda na (lift n k T) (lift n (S k) M)
+  | tLambda na r T M => tLambda na r (lift n k T) (lift n (S k) M)
   | tApp u v => tApp (lift n k u) (List.map (lift n k) v)
-  | tProd na A B => tProd na (lift n k A) (lift n (S k) B)
+  | tProd na r A B => tProd na r (lift n k A) (lift n (S k) B)
   | tCast c kind t => tCast (lift n k c) kind (lift n k t)
-  | tLetIn na b t b' => tLetIn na (lift n k b) (lift n k t) (lift n (S k) b')
-  | tCase ind p c brs =>
+  | tLetIn na r b t b' => tLetIn na r (lift n k b) (lift n k t) (lift n (S k) b')
+  | tCase ind r p c brs =>
     let brs' := List.map (on_snd (lift n k)) brs in
-    tCase ind (lift n k p) (lift n k c) brs'
+    tCase ind r (lift n k p) (lift n k c) brs'
   | tProj p c => tProj p (lift n k c)
   | tFix mfix idx =>
     let k' := List.length mfix + k in
@@ -51,14 +51,14 @@ Fixpoint subst t k u :=
     | Datatypes.Lt => tRel (pred n)
     end
   | tEvar ev args => tEvar ev (List.map (subst t k) args)
-  | tLambda na T M => tLambda na (subst t k T) (subst t (S k) M)
+  | tLambda na r T M => tLambda na r (subst t k T) (subst t (S k) M)
   | tApp u v => tApp (subst t k u) (List.map (subst t k) v)
-  | tProd na A B => tProd na (subst t k A) (subst t (S k) B)
+  | tProd na r A B => tProd na r (subst t k A) (subst t (S k) B)
   | tCast c kind ty => tCast (subst t k c) kind (subst t k ty)
-  | tLetIn na b ty b' => tLetIn na (subst t k b) (subst t k ty) (subst t (S k) b')
-  | tCase ind p c brs =>
+  | tLetIn na r b ty b' => tLetIn na r (subst t k b) (subst t k ty) (subst t (S k) b')
+  | tCase ind r p c brs =>
     let brs' := List.map (on_snd (subst t k)) brs in
-    tCase ind (subst t k p) (subst t k c) brs'
+    tCase ind r (subst t k p) (subst t k c) brs'
   | tProj p c => tProj p (subst t k c)
   | tFix mfix idx =>
     let k' := List.length mfix + k in
@@ -82,11 +82,11 @@ Fixpoint closedn k (t : term) : bool :=
   match t with
   | tRel i => Nat.ltb i k
   | tEvar ev args => List.forallb (closedn k) args
-  | tLambda _ T M | tProd _ T M => closedn k T && closedn (S k) M
+  | tLambda _ _ T M | tProd _ _ T M => closedn k T && closedn (S k) M
   | tApp u v => closedn k u && List.forallb (closedn k) v
   | tCast c kind t => closedn k c && closedn k t
-  | tLetIn na b t b' => closedn k b && closedn k t && closedn (S k) b'
-  | tCase ind p c brs =>
+  | tLetIn na _ b t b' => closedn k b && closedn k t && closedn (S k) b'
+  | tCase ind _ p c brs =>
     let brs' := List.forallb (test_snd (closedn k)) brs in
     closedn k p && closedn k c && brs'
   | tProj p c => closedn k c

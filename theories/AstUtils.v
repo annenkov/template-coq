@@ -24,7 +24,7 @@ Defined.
 
 Fixpoint decompose_prod (t : term) : (list name) * (list term) * term :=
   match t with
-  | tProd n A B => let (nAs, B) := decompose_prod B in
+  | tProd n _ A B => let (nAs, B) := decompose_prod B in
                   let (ns, As) := nAs in
                   (n :: ns, A :: As, B)
   | _ => ([], [], t)
@@ -40,7 +40,7 @@ Fixpoint remove_arity (n : nat) (t : term) : term :=
   match n with
   | O => t
   | S n => match t with
-          | tProd _ _ B => remove_arity n B
+          | tProd _ _ _ B => remove_arity n B
           | _ => t (* todo *)
           end
   end.

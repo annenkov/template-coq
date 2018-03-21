@@ -316,6 +316,7 @@ struct
 
   let unquote_level (trm : Univ0.Level.t) : Univ.Level.t =
     match trm with
+    | Univ0.Level.Coq_lSProp -> Univ.Level.sprop
     | Univ0.Level.Coq_lProp -> Univ.Level.prop
     | Univ0.Level.Coq_lSet -> Univ.Level.set
     | Univ0.Level.Level s ->

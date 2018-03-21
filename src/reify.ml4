@@ -34,11 +34,12 @@ let debug (m : unit ->Pp.t) =
   else
     ()
 
-let toDecl (old: Name.t * ((Constr.constr) option) * Constr.constr) : Context.Rel.Declaration.t =
-  let (name,value,typ) = old in
+(* SPROP: added [relevance] papameter *)
+let toDecl (old: Names.name * Sorts.relevance * ((Constr.constr) option) * Constr.constr) : Context.Rel.Declaration.t =
+  let (name,relevance,value,typ) = old in
   match value with
-  | Some value -> Context.Rel.Declaration.LocalDef (name,value,typ)
-  | None -> Context.Rel.Declaration.LocalAssum (name,typ)
+  | Some value -> Context.Rel.Declaration.LocalDef (name,relevance,value,typ)
+  | None -> Context.Rel.Declaration.LocalAssum (name,relevance,typ)
 
 let getType env (t:Constr.t) : Constr.t =
     EConstr.to_constr Evd.empty (Retyping.get_type_of env Evd.empty (EConstr.of_constr t))
@@ -64,8 +65,8 @@ let opt_hnf_ctor_types = ref false
 let hnf_type env ty =
   let rec hnf_type continue ty =
     match Constr.kind ty with
-      Constr.Prod (n,t,b) -> Constr.mkProd (n,t,hnf_type true b)
-    | Term.LetIn _
+      Term.Prod (n,r,t,b) -> Term.mkProd (n,r,t,hnf_type true b)
+      | Term.LetIn _
       | Term.Cast _
       | Term.App _ when continue ->
        hnf_type false (Reduction.whd_all env ty)
@@ -84,28 +85,28 @@ let split_name s : (Names.DirPath.t * Names.Id.t) =
 type ('a,'b) sum =
   Left of 'a | Right of 'b
 
-type ('term, 'name, 'nat) adef = { adname : 'name; adtype : 'term; adbody : 'term; rarg : 'nat }
+type ('term, 'name, 'relevance, 'nat) adef = { adname : 'name; adrelev : 'relevance ; adtype : 'term; adbody : 'term; rarg : 'nat }
   
-type ('term, 'name, 'nat) amfixpoint = ('term, 'name, 'nat) adef list
+type ('term, 'name, 'relevance, 'nat) amfixpoint = ('term, 'name, 'relevance, 'nat) adef list
     
-type ('term, 'nat, 'ident, 'name, 'quoted_sort, 'cast_kind, 'kername, 'inductive, 'universe_instance, 'projection) structure_of_term =
+type ('term, 'nat, 'ident, 'name, 'relevance, 'quoted_sort, 'cast_kind, 'kername, 'inductive, 'universe_instance, 'projection) structure_of_term =
   | ACoq_tRel of 'nat
   | ACoq_tVar of 'ident
   | ACoq_tMeta of 'nat
   | ACoq_tEvar of 'nat * 'term list
   | ACoq_tSort of 'quoted_sort
   | ACoq_tCast of 'term * 'cast_kind * 'term
-  | ACoq_tProd of 'name * 'term * 'term
-  | ACoq_tLambda of 'name * 'term * 'term
-  | ACoq_tLetIn of 'name * 'term * 'term * 'term
+  | ACoq_tProd of 'name * 'relevance * 'term * 'term
+  | ACoq_tLambda of 'name * 'relevance * 'term * 'term
+  | ACoq_tLetIn of 'name * 'relevance * 'term * 'term * 'term
   | ACoq_tApp of 'term * 'term list
   | ACoq_tConst of 'kername * 'universe_instance
   | ACoq_tInd of 'inductive * 'universe_instance
   | ACoq_tConstruct of 'inductive * 'nat * 'universe_instance
-  | ACoq_tCase of ('inductive * 'nat) * 'term * 'term * ('nat * 'term) list
+  | ACoq_tCase of ('inductive * 'nat) *'relevance * 'term * 'term * ('nat * 'term) list
   | ACoq_tProj of 'projection * 'term
-  | ACoq_tFix of ('term, 'name, 'nat) amfixpoint * 'nat
-  | ACoq_tCoFix of ('term, 'name, 'nat) amfixpoint * 'nat
+  | ACoq_tFix of ('term, 'name, 'relevance, 'nat) amfixpoint * 'nat
+  | ACoq_tCoFix of ('term, 'name, 'relevance, 'nat) amfixpoint * 'nat
       
 module type Quoter = sig
   type t
@@ -114,6 +115,7 @@ module type Quoter = sig
   type quoted_int
   type quoted_bool
   type quoted_name
+  type quoted_relevance
   type quoted_sort
   type quoted_cast_kind
   type quoted_kernel_name
@@ -145,6 +147,7 @@ module type Quoter = sig
 
   val quote_ident : Id.t -> quoted_ident
   val quote_name : Name.t -> quoted_name
+  val quote_relevance : Sorts.relevance -> quoted_relevance
   val quote_int : int -> quoted_int
   val quote_bool : bool -> quoted_bool
   val quote_sort : Sorts.t -> quoted_sort
@@ -180,18 +183,18 @@ module type Quoter = sig
   val mkEvar : quoted_int -> t array -> t
   val mkSort : quoted_sort -> t
   val mkCast : t -> quoted_cast_kind -> t -> t
-  val mkProd : quoted_name -> t -> t -> t
-  val mkLambda : quoted_name -> t -> t -> t
-  val mkLetIn : quoted_name -> t -> t -> t -> t
+  val mkProd : quoted_name -> quoted_relevance -> t -> t -> t
+  val mkLambda : quoted_name -> quoted_relevance -> t -> t -> t
+  val mkLetIn : quoted_name -> quoted_relevance -> t -> t -> t -> t
   val mkApp : t -> t array -> t
   val mkConst : quoted_kernel_name -> quoted_univ_instance -> t
   val mkInd : quoted_inductive -> quoted_univ_instance -> t
   val mkConstruct : quoted_inductive * quoted_int -> quoted_univ_instance -> t
-  val mkCase : (quoted_inductive * quoted_int) -> quoted_int list -> t -> t ->
+  val mkCase : (quoted_inductive * quoted_int) -> quoted_relevance -> quoted_int list -> t -> t ->
                t list -> t
   val mkProj : quoted_proj -> t -> t
-  val mkFix : (quoted_int array * quoted_int) * (quoted_name array * t array * t array) -> t
-  val mkCoFix : quoted_int * (quoted_name array * t array * t array) -> t
+  val mkFix : (quoted_int array * quoted_int) * (quoted_name array * quoted_relevance array * t array * t array) -> t
+  val mkCoFix : quoted_int * (quoted_name array * quoted_relevance array * t array * t array) -> t
 
   val mk_one_inductive_body : quoted_ident * t (* ind type *) * quoted_sort_family list
                                  * (quoted_ident * t (* constr type *) * quoted_int) list
@@ -216,6 +219,7 @@ module type Quoter = sig
 
   val unquote_ident : quoted_ident -> Id.t
   val unquote_name : quoted_name -> Name.t
+  val unquote_relevance : quoted_relevance -> Sorts.relevance
   val unquote_int :  quoted_int -> int
   val unquote_bool : quoted_bool -> bool
   (* val unquote_sort : quoted_sort -> Sorts.t 
@@ -228,7 +232,7 @@ module type Quoter = sig
   val unquote_universe : Evd.evar_map -> quoted_sort -> Evd.evar_map * Univ.Universe.t
   val print_term : t ->Pp.t
   (* val representsIndConstuctor : quoted_inductive -> Constr.t -> bool *)
-  val inspectTerm : t -> (t, quoted_int, quoted_ident, quoted_name, quoted_sort, quoted_cast_kind, quoted_kernel_name, quoted_inductive, quoted_univ_instance, quoted_proj) structure_of_term
+  val inspectTerm : t -> (t, quoted_int, quoted_ident, quoted_name, quoted_relevance, quoted_sort, quoted_cast_kind, quoted_kernel_name, quoted_inductive, quoted_univ_instance, quoted_proj) structure_of_term
 end
 
 let reduce_hnf env evm (trm : Constr.t) =
@@ -250,6 +254,7 @@ struct
   type quoted_int = Constr.t (* of type nat *)
   type quoted_bool = Constr.t (* of type bool *)
   type quoted_name = Constr.t (* of type Ast.name *)
+  type quoted_relevance = Constr.t (* of type Ast.relevance *)
   type quoted_sort = Constr.t (* of type Ast.universe *)
   type quoted_cast_kind = Constr.t  (* of type Ast.cast_kind *)
   type quoted_kernel_name = Constr.t (* of type Ast.kername *)
@@ -325,10 +330,14 @@ struct
   let kCast = r_reify "Cast"
   let kRevertCast = r_reify "RevertCast"
   let lProp = resolve_symbol pkg_level "lProp"
+  let lSProp = resolve_symbol pkg_level "lSProp"
   let lSet = resolve_symbol pkg_level "lSet"
+  let sfSProp = r_reify "InSProp"
   let sfProp = r_reify "InProp"
   let sfSet = r_reify "InSet"
   let sfType = r_reify "InType"
+  let tRelevance = r_reify "relevance"
+  let (tRelevant,tIrrelevant) = (r_reify "Relevant", r_reify "Irrelevant")
   let tident = r_reify "ident"
   let tIndTy = r_reify "inductive"
   let tmkInd = r_reify "mkInd"
@@ -465,6 +474,12 @@ struct
       Names.Name id -> Constr.mkApp (nNamed, [| quote_ident id |])
     | Names.Anonymous -> nAnon
 
+
+  let quote_relevance r =
+    match r with
+      Sorts.Relevant -> Constr.mkApp (tRelevant, [| |])
+    | Sorts.Irrelevant -> Constr.mkApp (tIrrelevant, [| |])
+
   let quote_cast_kind k =
     match k with
       Term.VMcast -> kVmCast
@@ -553,6 +568,7 @@ struct
     quote_universe (Sorts.univ_of_sort s)
 
   let quote_sort_family = function
+    | Sorts.InSProp -> sfSProp
     | Sorts.InProp -> sfProp
     | Sorts.InSet -> sfSet
     | Sorts.InType -> sfType
@@ -585,23 +601,23 @@ struct
   let mkSort s = Constr.mkApp (tSort, [| s |])
   let mkCast c k t = Constr.mkApp (tCast, [| c ; k ; t |])
   let mkConst kn u = Constr.mkApp (tConst, [| kn ; u |])
-  let mkProd na t b =
-    Constr.mkApp (tProd, [| na ; t ; b |])
-  let mkLambda na t b =
-    Constr.mkApp (tLambda, [| na ; t ; b |])
+  let mkProd na r t b =
+    Constr.mkApp (tProd, [| na ; r ; t ; b |])
+  let mkLambda na r t b =
+    Constr.mkApp (tLambda, [| na ; r ; t ; b |])
   let mkApp f xs =
     Constr.mkApp (tApp, [| f ; to_coq_list tTerm (Array.to_list xs) |])
 
-  let mkLetIn na t t' b =
-    Constr.mkApp (tLetIn, [| na ; t ; t' ; b |])
+  let mkLetIn na r t t' b =
+    Constr.mkApp (tLetIn, [| na ; r ; t ; t' ; b |])
 
   let rec seq f t =
     if f < t then f :: seq (f + 1) t
     else []
 
-  let mkFix ((a,b),(ns,ts,ds)) =
+  let mkFix ((a,b),(ns,rs,ts,ds)) =
     let mk_fun xs i =
-      Constr.mkApp (tmkdef, [| tTerm ; Array.get ns i ;
+      Constr.mkApp (tmkdef, [| tTerm ; Array.get ns i ; Array.get rs i ;
                              Array.get ts i ; Array.get ds i ; Array.get a i |]) :: xs
     in
     let defs = List.fold_left mk_fun [] (seq 0 (Array.length a)) in
@@ -611,9 +627,9 @@ struct
   let mkConstruct (ind, i) u =
     Constr.mkApp (tConstructor, [| ind ; i ; u |])
 
-  let mkCoFix (a,(ns,ts,ds)) =
+  let mkCoFix (a,(ns,rs,ts,ds)) =
     let mk_fun xs i =
-      Constr.mkApp (tmkdef, [| tTerm ; Array.get ns i ;
+      Constr.mkApp (tmkdef, [| tTerm ; Array.get ns i ; Array.get rs i ;
                              Array.get ts i ; Array.get ds i ; tO |]) :: xs
     in
     let defs = List.fold_left mk_fun [] (seq 0 (Array.length ns)) in
@@ -622,11 +638,11 @@ struct
 
   let mkInd i u = Constr.mkApp (tInd, [| i ; u |])
 
-  let mkCase (ind, npar) nargs p c brs =
+  let mkCase (ind, npar) r nargs p c brs =
     let info = pair tIndTy tnat ind npar in
     let branches = List.map2 (fun br nargs ->  pair tnat tTerm nargs br) brs nargs in
     let tl = prod tnat tTerm in
-    Constr.mkApp (tCase, [| info ; p ; c ; to_coq_list tl branches |])
+    Constr.mkApp (tCase, [| info ; r; p ; c ; to_coq_list tl branches |])
 
   let quote_proj ind pars args =
     pair (prod tIndTy tnat) tnat (pair tIndTy tnat ind pars) args
@@ -751,7 +767,7 @@ struct
     else
       not_supported_verb trm "from_coq_list"
         
-  let inspectTerm (t:Constr.t) :  (Constr.t, quoted_int, quoted_ident, quoted_name, quoted_sort, quoted_cast_kind, quoted_kernel_name, quoted_inductive, quoted_univ_instance, quoted_proj) structure_of_term =
+  let inspectTerm (t:Constr.t) :  (Constr.t, quoted_int, quoted_ident, quoted_name, quoted_relevance, quoted_sort, quoted_cast_kind, quoted_kernel_name, quoted_inductive, quoted_univ_instance, quoted_proj) structure_of_term =
     let (h,args) = app_full t [] in
     if Constr.equal h tRel then
       match args with
@@ -771,15 +787,15 @@ struct
       | _ -> CErrors.user_err (print_term t ++ Pp.str ("has bad structure"))
     else if Constr.equal h tProd then
       match args with
-        n :: t :: b :: _ -> ACoq_tProd (n,t,b)
+        n :: r :: t :: b :: _ -> ACoq_tProd (n,r,t,b)
       | _ -> CErrors.user_err (print_term t ++ Pp.str ("has bad structure"))
     else if Constr.equal h tLambda then
       match args with
-        n  :: t :: b :: _ -> ACoq_tLambda (n,t,b)
+        n  :: r :: t :: b :: _ -> ACoq_tLambda (n,r,t,b)
       | _ -> CErrors.user_err (print_term t ++ Pp.str ("has bad structure"))
     else if Constr.equal h tLetIn then
       match args with
-        n :: e :: t :: b :: _ -> ACoq_tLetIn (n,e,t,b)
+        n :: r :: e :: t :: b :: _ -> ACoq_tLetIn (n,r,e,t,b)
       | _ -> CErrors.user_err (print_term t ++ Pp.str ("has bad structure"))
     else if Constr.equal h tApp then
       match args with
@@ -799,7 +815,7 @@ struct
       | _ -> CErrors.user_err (print_term t ++ Pp.str ("has bad structure: constructor case"))
     else if Constr.equal h tCase then
       match args with
-        info::ty::d::brs::_ -> ACoq_tCase (from_coq_pair info, ty, d, List.map from_coq_pair (from_coq_list brs))
+        info::r::ty::d::brs::_ -> ACoq_tCase (from_coq_pair info, r, ty, d, List.map from_coq_pair (from_coq_list brs))
       | _ -> CErrors.user_err (print_term t ++ Pp.str ("has bad structure"))
     else if Constr.equal h tFix then
       match args with
@@ -807,11 +823,12 @@ struct
         let unquoteFbd  b  =
           let (_,args) = app_full b [] in
           match args with
-          | _(*type*) :: na :: ty :: body :: rarg :: [] ->
-            { adtype = ty;
-              adname = na;
-              adbody = body;
-              rarg
+          | _(*type*) :: na :: r :: ty :: body :: rarg :: [] ->
+             { adtype = ty;
+               adrelev = r;
+               adname = na;
+               adbody = body;
+               rarg
             }
           |_ -> raise (Failure " (mkdef must take exactly 5 arguments)")
         in
@@ -824,11 +841,12 @@ struct
         let unquoteFbd  b  =
           let (_,args) = app_full b [] in
           match args with
-          | _(*type*) :: na :: ty :: body :: rarg :: [] ->
-            { adtype = ty;
-              adname = na;
-              adbody = body;
-              rarg
+          | _(*type*) :: na :: r :: ty :: body :: rarg :: [] ->
+             { adtype = ty;
+               adrelev =r;
+               adname = na;
+               adbody = body;
+               rarg
             }
           |_ -> raise (Failure " (mkdef must take exactly 5 arguments)")
         in
@@ -917,6 +935,12 @@ struct
       else
         raise (Failure "non-value")
 
+    let unquote_relevance trm =
+      if Constr.equal trm tRelevant then
+        Sorts.Relevant
+      else if Constr.equal trm tIrrelevant then
+        Sorts.Irrelevant
+      else raise (Failure "Invalid relevance")
 
   (* CHANGES: This code was taken from (old version of) Pretyping, because it is not exposed globally *)
   (* the case for strict universe declarations was removed *)
@@ -1071,89 +1095,90 @@ CumulativityInfo.make (expose univs, ACumulativityInfo.variance cumi)
       (add_inductive : Names.inductive -> 'a -> 'a) =
     let rec quote_term (acc : 'a) env trm =
       let aux acc env trm =
-      match Constr.kind trm with
-	Term.Rel i -> (Q.mkRel (Q.quote_int (i - 1)), acc)
-      | Term.Var v -> (Q.mkVar (Q.quote_ident v), acc)
-      | Term.Meta n -> (Q.mkMeta (Q.quote_int n), acc)
-      | Term.Evar (n,args) ->
-	let (acc,args') =
-	  CArray.fold_map (fun acc x ->
-	    let (x,acc) = quote_term acc env x in acc,x)
-	                  acc args in
-         (Q.mkEvar (Q.quote_int (Evar.repr n)) args', acc)
-      | Term.Sort s -> (Q.mkSort (Q.quote_sort s), acc)
-      | Term.Cast (c,k,t) ->
-	let (c',acc) = quote_term acc env c in
-	let (t',acc) = quote_term acc env t in
-        let k' = Q.quote_cast_kind k in
-        (Q.mkCast c' k' t', acc)
+        match Constr.kind trm with
+	  Term.Rel i -> (Q.mkRel (Q.quote_int (i - 1)), acc)
+        | Term.Var v -> (Q.mkVar (Q.quote_ident v), acc)
+        | Term.Meta n -> (Q.mkMeta (Q.quote_int n), acc)
+        | Term.Evar (n,args) ->
+          let (acc,args') =
+            CArray.fold_map (fun acc x ->
+              let (x,acc) = quote_term acc env x in acc,x)
+                            acc args in
+           (Q.mkEvar (Q.quote_int (Evar.repr n)) args', acc)
+        | Term.Sort s -> (Q.mkSort (Q.quote_sort s), acc)
+        | Term.Cast (c,k,t) ->
+          let (c',acc) = quote_term acc env c in
+          let (t',acc) = quote_term acc env t in
+          let k' = Q.quote_cast_kind k in
+          (Q.mkCast c' k' t', acc)
 
-      | Term.Prod (n,t,b) ->
-	let (t',acc) = quote_term acc env t in
-        let env = push_rel (toDecl (n, None, t)) env in
-        let (b',acc) = quote_term acc env b in
-        (Q.mkProd (Q.quote_name n) t' b', acc)
+        | Term.Prod (n,r,t,b) ->
+          let (t',acc) = quote_term acc env t in
+          let env = push_rel (toDecl (n, r, None, t)) env in
+          let (b',acc) = quote_term acc env b in
+          (Q.mkProd (Q.quote_name n) (Q.quote_relevance r) t' b', acc)
 
-      | Term.Lambda (n,t,b) ->
-	let (t',acc) = quote_term acc env t in
-        let (b',acc) = quote_term acc (push_rel (toDecl (n, None, t)) env) b in
-        (Q.mkLambda (Q.quote_name n) t' b', acc)
+        | Term.Lambda (n,r,t,b) ->
+          let (t',acc) = quote_term acc env t in
+          let (b',acc) = quote_term acc (push_rel (toDecl (n, r, None, t)) env) b in
+          (Q.mkLambda (Q.quote_name n) (Q.quote_relevance r) t' b', acc)
 
-      | Term.LetIn (n,e,t,b) ->
-	let (e',acc) = quote_term acc env e in
-	let (t',acc) = quote_term acc env t in
-	let (b',acc) = quote_term acc (push_rel (toDecl (n, Some e, t)) env) b in
-	(Q.mkLetIn (Q.quote_name n) e' t' b', acc)
+        | Term.LetIn (n,r,e,t,b) ->
+          let (e',acc) = quote_term acc env e in
+          let (t',acc) = quote_term acc env t in
+          let (b',acc) = quote_term acc (push_rel (toDecl (n, r, Some e, t)) env) b in
+          (Q.mkLetIn (Q.quote_name n) (Q.quote_relevance r) e' t' b', acc)
 
-      | Term.App (f,xs) ->
-	let (f',acc) = quote_term acc env f in
-	let (acc,xs') =
-	  CArray.fold_map (fun acc x ->
-	    let (x,acc) = quote_term acc env x in acc,x)
-	    acc xs in
-	(Q.mkApp f' xs', acc)
+        | Term.App (f,xs) ->
+          let (f',acc) = quote_term acc env f in
+          let (acc,xs') =
+            CArray.fold_map (fun acc x ->
+              let (x,acc) = quote_term acc env x in acc,x)
+              acc xs in
+          (Q.mkApp f' xs', acc)
 
-      | Term.Const (c,pu) ->
-         let kn = Names.Constant.canonical c in
-         let pu' = Q.quote_univ_instance pu in
-	 (Q.mkConst (Q.quote_kn kn) pu', add_constant kn acc)
+        | Term.Const (c,pu) ->
+           let kn = Names.Constant.canonical c in
+           let pu' = Q.quote_univ_instance pu in
+           (Q.mkConst (Q.quote_kn kn) pu', add_constant kn acc)
 
-      | Term.Construct (((ind,i),c),pu) ->
-         (Q.mkConstruct (Q.quote_inductive (Q.quote_kn (Names.MutInd.canonical ind), Q.quote_int i),
-                         Q.quote_int (c - 1))
-            (Q.quote_univ_instance pu), add_inductive (ind,i) acc)
+        | Term.Construct (((ind,i),c),pu) ->
+           (Q.mkConstruct (Q.quote_inductive (Q.quote_kn (Names.MutInd.canonical ind), Q.quote_int i),
+                           Q.quote_int (c - 1))
+              (Q.quote_univ_instance pu), add_inductive (ind,i) acc)
 
-      | Term.Ind ((ind,i),pu) ->
-         (Q.mkInd (Q.quote_inductive (Q.quote_kn (Names.MutInd.canonical ind), Q.quote_int i))
-            (Q.quote_univ_instance pu), add_inductive (ind,i) acc)
+        | Term.Ind ((ind,i),pu) ->
+           (Q.mkInd (Q.quote_inductive (Q.quote_kn (Names.MutInd.canonical ind), Q.quote_int i))
+              (Q.quote_univ_instance pu), add_inductive (ind,i) acc)
+        (* SPROP: not sure what is the role of the third arg to Case constructor.
+           It's not in the master branch.*)
+        | Term.Case (ci,typeInfo,arr,discriminant,e) ->
+           let ind = Q.quote_inductive (Q.quote_kn (Names.MutInd.canonical (fst ci.Term.ci_ind)),
+                                        Q.quote_int (snd ci.Term.ci_ind)) in
+           let npar = Q.quote_int ci.Term.ci_npar in
+           let (qtypeInfo,acc) = quote_term acc env typeInfo in
+           let (qdiscriminant,acc) = quote_term acc env discriminant in
+           let (branches,nargs,acc) =
+             CArray.fold_left2 (fun (xs,nargs,acc) x narg ->
+                 let (x,acc) = quote_term acc env x in
+                 let narg = Q.quote_int narg in
+                 (x :: xs, narg :: nargs, acc))
+               ([],[],acc) e ci.Term.ci_cstr_nargs in
+           (Q.mkCase (ind, npar) (Q.quote_relevance ci.ci_relevance) (List.rev nargs) qtypeInfo qdiscriminant (List.rev branches), acc)
 
-      | Term.Case (ci,typeInfo,discriminant,e) ->
-         let ind = Q.quote_inductive (Q.quote_kn (Names.MutInd.canonical (fst ci.Term.ci_ind)),
-                                      Q.quote_int (snd ci.Term.ci_ind)) in
-         let npar = Q.quote_int ci.Term.ci_npar in
-         let (qtypeInfo,acc) = quote_term acc env typeInfo in
-	 let (qdiscriminant,acc) = quote_term acc env discriminant in
-         let (branches,nargs,acc) =
-           CArray.fold_left2 (fun (xs,nargs,acc) x narg ->
-               let (x,acc) = quote_term acc env x in
-               let narg = Q.quote_int narg in
-               (x :: xs, narg :: nargs, acc))
-             ([],[],acc) e ci.Term.ci_cstr_nargs in
-         (Q.mkCase (ind, npar) (List.rev nargs) qtypeInfo qdiscriminant (List.rev branches), acc)
-
-      | Term.Fix fp -> quote_fixpoint acc env fp
-      | Term.CoFix fp -> quote_cofixpoint acc env fp
-      | Term.Proj (p,c) ->
-         let proj = Environ.lookup_projection p (snd env) in
-         let ind = proj.Declarations.proj_ind in
-         let ind = Q.quote_inductive (Q.quote_kn (Names.MutInd.canonical ind),
-                                      Q.quote_int 0) in
-         let pars = Q.quote_int proj.Declarations.proj_npars in
-         let arg = Q.quote_int proj.Declarations.proj_arg in
-         let p' = Q.quote_proj ind pars arg in
-         let kn = Names.Constant.canonical (Names.Projection.constant p) in
-         let t', acc = quote_term acc env c in
-         (Q.mkProj p' t', add_constant kn acc)
+        | Term.Fix fp -> quote_fixpoint acc env fp
+        | Term.CoFix fp -> quote_cofixpoint acc env fp
+        | Term.Proj (p,c) ->
+           let proj = Environ.lookup_projection p (snd env) in
+           let ind = proj.Declarations.proj_ind in
+           let ind = Q.quote_inductive (Q.quote_kn (Names.MutInd.canonical ind),
+                                        Q.quote_int 0) in
+           let pars = Q.quote_int proj.Declarations.proj_npars in
+           let arg = Q.quote_int proj.Declarations.proj_arg in
+           let p' = Q.quote_proj ind pars arg in
+           let kn = Names.Constant.canonical (Names.Projection.constant p) in
+           let t', acc = quote_term acc env c in
+           (Q.mkProj p' t', add_constant kn acc)
       in
       let in_prop, env' = env in
       if is_cast_prop () && not in_prop then
@@ -1178,17 +1203,19 @@ CumulativityInfo.make (expose univs, ACumulativityInfo.variance cumi)
                             Constr.mkCast (EConstr.to_constr Evd.empty ty, Term.DEFAULTcast, Constr.mkProp)))
         else aux acc env trm
       else aux acc env trm
-    and quote_recdecl (acc : 'a) env b (ns,ts,ds) =
+    (* SPROP: added [rs] parameter for array of relevance info. *)
+    and quote_recdecl (acc : 'a) env b (ns,rs,ts,ds) =
       let ctxt =
-        CArray.map2_i (fun i na t -> (Context.Rel.Declaration.LocalAssum (na, Vars.lift i t))) ns ts in
+        CArray.map3_i (fun i na r t -> (Context.Rel.Declaration.LocalAssum (na, r, Vars.lift i t))) ns rs ts in
       let envfix = push_rel_context (CArray.rev_to_list ctxt) env in
       let ns' = Array.map Q.quote_name ns in
+      let rs' = Array.map Q.quote_relevance rs in
       let b' = Q.quote_int b in
       let acc, ts' =
         CArray.fold_map (fun acc t -> let x,acc = quote_term acc env t in acc, x) acc ts in
       let acc, ds' =
         CArray.fold_map (fun acc t -> let x,y = quote_term acc envfix t in y, x) acc ds in
-      ((b',(ns',ts',ds')), acc)
+      ((b',(ns',rs',ts',ds')), acc)
     and quote_fixpoint acc env t =
       let ((a,b),decl) = t in
       let a' = Array.map Q.quote_int a in
@@ -1205,7 +1232,7 @@ CumulativityInfo.make (expose univs, ACumulativityInfo.variance cumi)
       let indtys =
         (CArray.map_to_list (fun oib ->
            let ty = Inductive.type_of_inductive (snd env) ((mib,oib),inst) in
-           (Context.Rel.Declaration.LocalAssum (Names.Name oib.mind_typename, ty))) mib.mind_packets)
+           (Context.Rel.Declaration.LocalAssum (Names.Name oib.mind_typename,oib.mind_relevant,ty))) mib.mind_packets)
       in
       let envind = push_rel_context (List.rev indtys) env in
       let ref_name = Q.quote_kn (MutInd.canonical t) in
@@ -1234,7 +1261,7 @@ CumulativityInfo.make (expose univs, ACumulativityInfo.variance cumi)
                let ctxwolet = Termops.smash_rel_context mib.mind_params_ctxt in
                let indty = Constr.mkApp (Constr.mkIndU ((t,0),inst),
                                        Context.Rel.to_extended_vect Constr.mkRel 0 ctxwolet) in
-               let indbinder = Context.Rel.Declaration.LocalAssum (Names.Name id,indty) in
+               let indbinder = Context.Rel.Declaration.LocalAssum (Names.Name id,oib.mind_relevant,indty) in
                let envpars = push_rel_context (indbinder :: ctxwolet) env in
                let ps, acc = CArray.fold_right2 (fun cst pb (ls,acc) ->
                  let (ty, acc) = quote_term acc envpars pb.Declarations.proj_type in
@@ -1353,18 +1380,23 @@ CumulativityInfo.make (expose univs, ACumulativityInfo.variance cumi)
     (iname, arity, templatePoly, consnames, constypes)
 
   let process_local_entry
-        (f: 'a -> Constr.t option (* body *) -> Constr.t (* type *) -> Names.Id.t -> Environ.env -> 'a)
+        (f: 'a -> Constr.t option (* body *) -> Constr.t (* type *) -> Names.Id.t -> Sorts.relevance -> Environ.env -> 'a)
         ((env,a):(Environ.env*'a))
         ((n,le):(Names.Id.t * Entries.local_entry))
       :  (Environ.env * 'a) =
+    (* SPROP: we reconstruct relevance through retyping *)
     match le with
-    | Entries.LocalAssumEntry t -> (Environ.push_rel (toDecl (Names.Name n,None,t)) env, f a None t n env)
+    | Entries.LocalAssumEntry t ->
+       (* Should we use [Retyping.relevance_of_type] here instead? But we don't have evar_map at hand *)
+       let relevance = Retypeops.relevance_of_term env t in
+       (Environ.push_rel (toDecl (Names.Name n,relevance,None,t)) env, f a None t n relevance env)
     | Entries.LocalDefEntry b ->
        let typ = getType env b in
-       (Environ.push_rel (toDecl (Names.Name n, Some b, typ)) env, f a (Some b) typ n env)
+       let relevance = Retypeops.relevance_of_term env b in
+       (Environ.push_rel (toDecl (Names.Name n,relevance, Some b, typ)) env, f a (Some b) typ n relevance env)
 
   let quote_mind_params env (params:(Names.Id.t * Entries.local_entry) list) =
-    let f lr ob t n env =
+    let f lr ob t n r env =
       match ob with
       | Some b -> (Q.quote_ident n, Left (quote_term env b))::lr
       | None ->
@@ -1375,16 +1407,34 @@ CumulativityInfo.make (expose univs, ACumulativityInfo.variance cumi)
 
   let mind_params_as_types ((env,t):Environ.env*Constr.t) (params:(Names.Id.t * Entries.local_entry) list) :
         Environ.env*Constr.t =
-    List.fold_left (process_local_entry (fun tr ob typ n env -> Term.mkProd_or_LetIn (toDecl (Names.Name n,ob,typ)) tr)) (env,t)
+    List.fold_left
+      (process_local_entry
+         (fun tr ob typ n r env ->
+           Term.mkProd_or_LetIn (toDecl (Names.Name n,r,ob,typ)) tr))
+      (env,t)
       (List.rev params)
+
+  (* let mind_params_as_types ((env,t):Environ.env*Constr.t)
+   *       (rs : Sorts.relevance list)
+   *       (params:(Names.Id.t * Entries.local_entry) list) : Environ.env * Constr.t =
+   *   List.fold_left2 (fun acc r le ->
+   *       process_local_entry
+   *         (fun tr ob typ n env -> Term.mkProd_or_LetIn (toDecl (Names.Name n,r,ob,typ)) tr) acc r le)
+   *     (env,t)
+   *     (List.rev rs)
+   *     (List.rev params) *)
 
   (* CHANGE: this is the only way (ugly) I found to construct [absrt_info] with empty fields,
 since  [absrt_info] is a private type *)
-  let empty_segment = Lib.section_segment_of_reference (Names.VarRef (Names.Id.of_string "blah"))
-      
+  let empty_segment = Lib.section_segment_of_reference (Globnames.VarRef (Names.Id.of_string "blah"))
+
+
+  (* let mind_relevances (mi : Declarations.mutual_inductive_body) : Sorts.relevance list =
+   *   Array.to_list (Array.map (fun (d : Declarations.one_inductive_body) -> d.mind_relevant) mi.mind_packets) *)
+    
   let quote_mut_ind env (mi:Declarations.mutual_inductive_body) =
    let t= Discharge.process_inductive empty_segment (Names.Cmap.empty,Names.Mindmap.empty) mi in
-    let mf = Q.quote_mind_finiteness t.mind_entry_finite in
+   let mf = Q.quote_mind_finiteness t.mind_entry_finite in
     let mp = (snd (quote_mind_params env (t.mind_entry_params))) in
     (* before quoting the types of constructors, we need to enrich the environment with the inductives *)
     let one_arities =
@@ -1393,10 +1443,14 @@ since  [absrt_info] is a private type *)
                    snd (mind_params_as_types (env,x.mind_entry_arity) (t.mind_entry_params))))
         t.mind_entry_inds in
     (* env for quoting constructors of inductives. First push inductices, then params *)
-    let envC = List.fold_left (fun env p -> Environ.push_rel (toDecl (Names.Name (fst p), None, snd p)) env) env (one_arities) in
-    let (envC,_) = List.fold_left (process_local_entry (fun _ _ _ _ _ -> ())) (envC,()) (List.rev (t.mind_entry_params)) in
+    let envC = List.fold_left
+                 (fun env p ->
+                   (* SPROP: we reconstruct relevance through retyping *)
+                   let relevance = Retypeops.relevance_of_term env (snd p) in
+                   Environ.push_rel (toDecl (Names.Name (fst p), relevance, None, snd p)) env) env (one_arities) in
+    let (envC,_) = List.fold_left (process_local_entry (fun _ _ _ _ _ _ -> ())) (envC,()) (List.rev (t.mind_entry_params)) in
     (* env for quoting arities of inductives -- just push the params *)
-    let (envA,_) = List.fold_left (process_local_entry (fun _ _ _ _ _ -> ())) (env,()) (List.rev (t.mind_entry_params)) in
+    let (envA,_) = List.fold_left (process_local_entry (fun _ _ _ _ _ _ -> ())) (env,()) (List.rev (t.mind_entry_params)) in
     let is = List.map (quote_one_ind envA envC) t.mind_entry_inds in
    let uctx = Q.quote_inductive_universes t.mind_entry_universes in
     Q.quote_mutual_inductive_entry (mf, mp, is, uctx)
@@ -1457,9 +1511,9 @@ let denote_term evdref (trm: Q.t) : Constr.t =
   | ACoq_tSort x ->
       let evd, u = Q.unquote_universe !evdref x in evdref := evd; Constr.mkType u
   | ACoq_tCast (t,c,ty) -> Constr.mkCast (aux t, Q.unquote_cast_kind c, aux ty)
-  | ACoq_tProd (n,t,b) -> Constr.mkProd (Q.unquote_name n, aux t, aux b)
-  | ACoq_tLambda (n,t,b) -> Constr.mkLambda (Q.unquote_name n, aux t, aux b)
-  | ACoq_tLetIn (n,e,t,b) -> Constr.mkLetIn (Q.unquote_name n, aux e, aux t, aux b)
+  | ACoq_tProd (n,r,t,b) -> Constr.mkProd (Q.unquote_name n, Q.unquote_relevance r, aux t, aux b)
+  | ACoq_tLambda (n,r,t,b) -> Constr.mkLambda (Q.unquote_name n, Q.unquote_relevance r, aux t, aux b)
+  | ACoq_tLetIn (n,r,e,t,b) -> Constr.mkLetIn (Q.unquote_name n, Q.unquote_relevance r, aux e, aux t, aux b)
   | ACoq_tApp (f,xs) ->   
       Constr.mkApp (aux f, Array.of_list (List.map aux  xs))
   | ACoq_tConst (s,_) ->   
@@ -1481,29 +1535,32 @@ let denote_term evdref (trm: Q.t) : Constr.t =
   | ACoq_tInd (i, _) ->
       let i = Q.unquote_inductive i in
       Constr.mkInd i
-  | ACoq_tCase (info, ty, d, brs) ->
+  | ACoq_tCase (info, r, ty, d, brs) ->
       let i, _ = info in
       let ind = Q.unquote_inductive i in
-      let ci = Inductiveops.make_case_info (Global.env ()) ind Term.RegularStyle in
+      let ci = Inductiveops.make_case_info (Global.env ()) ind (Q.unquote_relevance r) Term.RegularStyle in
       let denote_branch br =
           let _, br = br in
             aux br
       in
-      Constr.mkCase (ci, aux ty, aux d, Array.of_list (List.map denote_branch (brs)))
+      (* TODO: SPROP: not sure what to pass as the third param *)
+      Constr.mkCase (ci, aux ty, None, aux d, Array.of_list (List.map denote_branch (brs)))
   | ACoq_tFix (lbd, i) -> 
-      let (names,types,bodies,rargs) = (List.map (fun p->p.adname) lbd,  List.map (fun p->p.adtype) lbd, List.map (fun p->p.adbody) lbd, 
+      let (names,relevances,types,bodies,rargs) = (List.map (fun p->p.adname) lbd, List.map (fun p->p.adrelev) lbd,  List.map (fun p->p.adtype) lbd, List.map (fun p->p.adbody) lbd, 
         List.map (fun p->p.rarg) lbd) in
       let (types,bodies) = (List.map aux types, List.map aux bodies) in
       let (names,rargs) = (List.map Q.unquote_name names, List.map Q.unquote_int rargs) in
+      let relevances = List.map Q.unquote_relevance relevances in
       let la = Array.of_list in
-    Constr.mkFix ((la rargs,Q.unquote_int i), (la names, la types, la bodies))
+    Constr.mkFix ((la rargs,Q.unquote_int i), (la names, la relevances, la types, la bodies))
   | ACoq_tCoFix (lbd, i) -> 
-      let (names,types,bodies,rargs) = (List.map (fun p->p.adname) lbd,  List.map (fun p->p.adtype) lbd, List.map (fun p->p.adbody) lbd, 
+     let (names,relevances,types,bodies,rargs) = (List.map (fun p->p.adname) lbd, List.map (fun p->p.adrelev) lbd,  List.map (fun p->p.adtype) lbd, List.map (fun p->p.adbody) lbd, 
         List.map (fun p->p.rarg) lbd) in
       let (types,bodies) = (List.map aux types, List.map aux bodies) in
       let (names,rargs) = (List.map Q.unquote_name names, List.map Q.unquote_int rargs) in
+      let relevances = List.map Q.unquote_relevance relevances in
       let la = Array.of_list in
-      Constr.mkCoFix (Q.unquote_int i, (la names, la types, la bodies))
+      Constr.mkCoFix (Q.unquote_int i, (la names, la relevances, la types, la bodies))
   | ACoq_tProj (proj,t) -> 
     let (ind, _, narg) = Q.unquote_proj proj in (* is narg the correct projection? *)
     let ind' = Q.unquote_inductive ind in
@@ -1808,7 +1865,9 @@ struct
       match args with
       | id::[] -> let id = unquote_string id in
                   (try
-                     let gr = Smartlocate.locate_global_with_alias (CAst.make (Libnames.qualid_of_string id)) in
+                     let gr = Smartlocate.locate_global_with_alias
+                                (* TODO: Change to this when master branch merged to sprop: (CAst.make (Libnames.qualid_of_string id)) *)
+                                (None, (Libnames.qualid_of_string id)) in
                      let opt = Constr.mkApp (cSome , [|tglobal_reference ; quote_global_reference gr|]) in
                     k (evm, opt)
                   with
@@ -1878,7 +1937,10 @@ let ltac_lcall tac args =
     (* Loc.tag @@ Names.Id.of_string tac *)
   in
   Tacexpr.TacArg(Loc.tag @@ Tacexpr.TacCall
-                              (Loc.tag (Misctypes.ArgVar (CAst.make ?loc:location name),args)))
+                              (Loc.tag (Misctypes.ArgVar
+                                          (* TODO: Change to this when master branch merged to sprop: (CAst.make ?loc:location name) *)
+                                          (location, name),
+                                        args)))
 
 open Tacexpr
 open Tacinterp
@@ -1891,7 +1953,8 @@ let ltac_apply (f : Value.t) (args: Tacinterp.Value.t list) =
   let fold arg (i, vars, lfun) =
     let id = Names.Id.of_string ("x" ^ string_of_int i) in
     let (l,n) = (Loc.tag id) in
-    let x = Reference (ArgVar (CAst.make ?loc:l n)) in
+    (* TODO: Change to this when master branch merged to sprop:  let x = Reference (ArgVar (CAst.make ?loc:l n)) in *)
+    let x = Reference (ArgVar (l, n)) in
     (succ i, x :: vars, Id.Map.add id arg lfun)
   in
   let (_, args, lfun) = List.fold_right fold args (0, [], Id.Map.empty) in
@@ -1935,7 +1998,8 @@ TACTIC EXTEND denote_term
          let def' = Constrextern.extern_constr true env !evdref (EConstr.of_constr c) in
          let def = Constrintern.interp_constr env !evdref def' in
          Proofview.tclTHEN (Proofview.Unsafe.tclEVARS !evdref)
-	   (ltac_apply tac (List.map to_ltac_val [fst def]))
+           (* TODO remove back EConstr.of_constr when master branch merged to sprop *)
+	   (ltac_apply tac (List.map to_ltac_val [EConstr.of_constr (fst def)]))
       end) ]
 END;;
 
@@ -1945,7 +2009,8 @@ VERNAC COMMAND EXTEND Make_vernac CLASSIFIED AS SIDEFF
       [ check_inside_section () ;
 	let (evm,env) = Pfedit.get_current_context () in
 	let def,uctx = Constrintern.interp_constr env evm def in
-	let trm = TermReify.quote_term env (EConstr.to_constr evm def) in
+        (* TODO put back EConstr.to_constr evm def when master branch merged to sprop *)
+	let trm = TermReify.quote_term env def in
 	ignore(Declare.declare_definition
                  ~kind:Decl_kinds.Definition name
                  (trm, Monomorphic_const_entry (UState.context_set uctx))) ]
@@ -1958,7 +2023,8 @@ VERNAC COMMAND EXTEND Make_vernac_reduce CLASSIFIED AS SIDEFF
 	let def, uctx = Constrintern.interp_constr env evm def in
         let evm = Evd.from_ctx uctx in
         let (evm,rd) = Tacinterp.interp_redexp env evm rd in
-	let (evm,def) = reduce_all env evm ~red:rd (EConstr.to_constr evm def) in
+        (* TODO put back EConstr.to_constr evm def when master branch merged to sprop *)
+	let (evm,def) = reduce_all env evm ~red:rd def in
 	let trm = TermReify.quote_term env def in
 	ignore(Declare.declare_definition
                  ~kind:Decl_kinds.Definition
@@ -1971,7 +2037,8 @@ VERNAC COMMAND EXTEND Make_recursive CLASSIFIED AS SIDEFF
       [ check_inside_section () ;
 	let (evm,env) = Pfedit.get_current_context () in
 	let def, uctx = Constrintern.interp_constr env evm def in
-	let trm = TermReify.quote_term_rec env (EConstr.to_constr evm def) in
+        (* TODO put back EConstr.to_constr evm def when master branch merged to sprop *)
+	let trm = TermReify.quote_term_rec env def in
 	ignore(Declare.declare_definition
 	  ~kind:Decl_kinds.Definition name
 	  (trm, Monomorphic_const_entry (UState.context_set uctx))) ]
@@ -1983,7 +2050,8 @@ VERNAC COMMAND EXTEND Unquote_vernac CLASSIFIED AS SIDEFF
 	let (evm, env) = Pfedit.get_current_context () in
 	let (trm, uctx) = Constrintern.interp_constr env evm def in
         let evdref = ref (Evd.from_ctx uctx) in
-	let trm = TermReify.denote_term evdref (EConstr.to_constr evm trm) in
+        (* TODO put back EConstr.to_constr evm def when master branch merged to sprop *)
+	let trm = TermReify.denote_term evdref trm in
 	let _ = Declare.declare_definition
                   ~kind:Decl_kinds.Definition
                   name
@@ -1998,7 +2066,8 @@ VERNAC COMMAND EXTEND Unquote_vernac_red CLASSIFIED AS SIDEFF
 	let (trm, uctx) = Constrintern.interp_constr env evm def in
         let evm = Evd.from_ctx uctx in
         let (evm,rd) = Tacinterp.interp_redexp env evm rd in
-	let (evm,trm) = reduce_all env evm ~red:rd (EConstr.to_constr evm trm) in
+        (* TODO put back EConstr.to_constr evm def when master branch merged to sprop *)
+	let (evm,trm) = reduce_all env evm ~red:rd trm in
         let evdref = ref evm in
         let trm = TermReify.denote_term evdref trm in
 	let _ = Declare.declare_definition ~kind:Decl_kinds.Definition name
@@ -2011,7 +2080,8 @@ VERNAC COMMAND EXTEND Unquote_inductive CLASSIFIED AS SIDEFF
       [ check_inside_section () ;
 	let (evm,env) = Pfedit.get_current_context () in
 	let (body,uctx) = Constrintern.interp_constr env evm def in
-        Denote.declare_inductive env evm (EConstr.to_constr evm body) ]
+        (* TODO put back EConstr.to_constr evm def when master branch merged to sprop *)
+        Denote.declare_inductive env evm body ]
 END;;
 
 VERNAC COMMAND EXTEND Run_program CLASSIFIED AS SIDEFF
@@ -2020,7 +2090,8 @@ VERNAC COMMAND EXTEND Run_program CLASSIFIED AS SIDEFF
 	let (evm, env) = Pfedit.get_current_context () in
         let (def, _) = Constrintern.interp_constr env evm def in
         (* todo : uctx ? *)
-        Denote.run_template_program_rec (fun _ -> ()) (evm, (EConstr.to_constr evm def)) ]
+        (* TODO put back EConstr.to_constr evm def when master branch merged to sprop *)
+        Denote.run_template_program_rec (fun _ -> ()) (evm, def) ]
 END;;
 
 VERNAC COMMAND EXTEND Make_tests CLASSIFIED AS QUERY
@@ -2028,7 +2099,8 @@ VERNAC COMMAND EXTEND Make_tests CLASSIFIED AS QUERY
       [ check_inside_section () ;
 	let (evm,env) = Pfedit.get_current_context () in
 	let c = Constrintern.interp_constr env evm c in
-	let result = TermReify.quote_term env (EConstr.to_constr evm (fst c)) in
+        (* TODO put back EConstr.to_constr evm def when master branch merged to sprop *)
+	let result = TermReify.quote_term env (fst c) in
         Feedback.msg_notice (Printer.pr_constr result) ;
 	() ]
 END;;

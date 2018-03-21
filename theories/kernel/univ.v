@@ -37,12 +37,14 @@ Definition bool_lt b1 b2 := match compare_bool b1 b2 with Lt => true | _ => fals
 Module Level.
   Inductive t : Set :=
   | lProp
+  | lSProp
   | lSet
   | Level (_ : string)
   | Var (_ : nat) (* these are debruijn indices *).
 
   Definition set : t := lSet.
   Definition prop : t := lProp.
+  Definition sprop :t := lSProp.
 
   Definition is_small (x : t) :=
     match x with
@@ -62,11 +64,15 @@ Module Level.
     | _ => false
     end.
 
+  (* Added lSProp cases similarly to lProp *)
   Definition compare (l1 l2 : t) : comparison :=
     match l1, l2 with
     | lProp, lProp => Eq
     | lProp, _ => Lt
     | _, lProp => Gt
+    | lSProp, lSProp => Eq
+    | lSProp, _ => Lt
+    | _, lSProp => Gt
     | lSet, lSet => Eq
     | lSet, _ => Lt
     | _, lSet => Gt
