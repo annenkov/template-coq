@@ -190,16 +190,17 @@ Record mutual_inductive_entry := {
 
 Record context_decl := {
   decl_name : name ;
+  decl_relevance : relevance ;
   decl_body : option term ;
   decl_type : term }.
 
 (** Local (de Bruijn) variable binding *)
 
-Definition vass x A := {| decl_name := x; decl_body := None; decl_type := A |}.
+Definition vass x r A := {| decl_name := x; decl_relevance := r; decl_body := None; decl_type := A |}.
 
 (** Local (de Bruijn) let-binding *)
 
-Definition vdef x t A := {| decl_name := x; decl_body := Some t; decl_type := A |}.
+Definition vdef x r t A := {| decl_name := x; decl_relevance := r; decl_body := Some t; decl_type := A |}.
 
 (** Local (de Bruijn) context *)
 

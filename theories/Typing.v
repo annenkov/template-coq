@@ -16,6 +16,9 @@ Set Asymmetric Patterns.
 
  *)
 
+(* SPROP : we make this work with the sProp version of Coq by adding a relevance parameter to appropriate constructors.
+   It's kept general if possible, or made Relevant is there is no obvious choice. In general, this could be appropriately chagned in the future.*)
+
 (** ** Environment lookup *)
 
 Definition global_decl_ident d :=
@@ -198,11 +201,11 @@ Inductive red1 (Σ : global_declarations) (Γ : context) : term -> term -> Prop 
 (* TODO Proj CoFix *)
          
 | abs_red_l na M M' N : red1 Σ Γ M M' -> red1 Σ Γ (tLambda na Relevant M N) (tLambda na Relevant M' N)
-| abs_red_r na M M' N : red1 Σ (Γ ,, vass na N) M M' -> red1 Σ Γ (tLambda na Relevant N M) (tLambda na Relevant N M')
+| abs_red_r na M M' N : red1 Σ (Γ ,, vass na Relevant N) M M' -> red1 Σ Γ (tLambda na Relevant N M) (tLambda na Relevant N M')
 
 | letin_red_def na b t b' r : red1 Σ Γ b r -> red1 Σ Γ (tLetIn na Relevant b t b') (tLetIn na Relevant r t b')
 | letin_red_ty na b t b' r : red1 Σ Γ t r -> red1 Σ Γ (tLetIn na Relevant b t b') (tLetIn na Relevant b r b')
-| letin_red_body na b t b' r : red1 Σ (Γ ,, vdef na b t) b' r -> red1 Σ Γ (tLetIn na Relevant b t b') (tLetIn na Relevant b t r)
+| letin_red_body na b t b' r : red1 Σ (Γ ,, vdef na Relevant b t) b' r -> red1 Σ Γ (tLetIn na Relevant b t b') (tLetIn na Relevant b t r)
 
 | case_red_discr ind p c c' brs : red1 Σ Γ c c' -> red1 Σ Γ (tCase ind Relevant p c brs) (tCase ind Relevant p c' brs)
 | case_red_brs ind p c brs brs' : redbrs1 Σ Γ brs brs' -> red1 Σ Γ (tCase ind Relevant p c brs) (tCase ind Relevant p c brs')
@@ -211,7 +214,7 @@ Inductive red1 (Σ : global_declarations) (Γ : context) : term -> term -> Prop 
 | app_red_r M2 N2 M1 : reds1 Σ Γ M2 N2 -> red1 Σ Γ (tApp M1 M2) (tApp M1 N2)
 
 | prod_red_l na na' M1 M2 N1 : red1 Σ Γ M1 N1 -> red1 Σ Γ (tProd na Relevant M1 M2) (tProd na' Relevant N1 M2)
-| prod_red_r na na' M2 N2 M1 : red1 Σ (Γ ,, vass na M1) M2 N2 ->
+| prod_red_r na na' M2 N2 M1 : red1 Σ (Γ ,, vass na Relevant M1) M2 N2 ->
                                red1 Σ Γ (tProd na Relevant M1 M2) (tProd na' Relevant M1 N2)
 
 | evar ev l l' : reds1 Σ Γ l l' -> red1 Σ Γ (tEvar ev l) (tEvar ev l')
@@ -347,8 +350,8 @@ Fixpoint leq_term (φ : uGraph.t) (t u : term) {struct t} :=
 
 Fixpoint destArity Γ (t : term) :=
   match t with
-  | tProd na _ t b => destArity (Γ ,, vass na t) b
-  | tLetIn na _ b b_ty b' => destArity (Γ ,, vdef na b b_ty) b'
+  | tProd na r t b => destArity (Γ ,, vass na r t) b
+  | tLetIn na r b b_ty b' => destArity (Γ ,, vdef na r b b_ty) b'
   | tSort s => Some (Γ, s)
   | _ => None
   end.
@@ -359,8 +362,8 @@ Fixpoint it_mkLambda_or_LetIn (l : context) (t : term) :=
   List.fold_left
     (fun acc d =>
        match d.(decl_body) with
-       | None => tLambda d.(decl_name) Relevant d.(decl_type) acc
-       | Some b => tLetIn d.(decl_name) Relevant b d.(decl_type) acc
+       | None => tLambda d.(decl_name) d.(decl_relevance) d.(decl_type) acc
+       | Some b => tLetIn d.(decl_name) d.(decl_relevance) b d.(decl_type) acc
        end) l t.
 
 (** Make a list of variables of length [#|Γ|], starting at [acc]. *)
@@ -447,7 +450,7 @@ Hint Resolve conv_refl cumul_refl' : typecheck.
 
 Conjecture congr_cumul_prod : forall Σ Γ na na' M1 M2 N1 N2,
     cumul Σ Γ M1 N1 ->
-    cumul Σ (Γ ,, vass na M1) M2 N2 ->
+    cumul Σ (Γ ,, vass na Relevant M1) M2 N2 ->
     cumul Σ Γ (tProd na Relevant M1 M2) (tProd na' Relevant N1 N2).
 
 (** ** Typing relation *)
@@ -466,18 +469,18 @@ Inductive typing (Σ : global_context) (Γ : context) : term -> term -> Type :=
 
 | type_Prod n t b s1 s2 :
     Σ ;;; Γ |- t : tSort s1 ->
-    Σ ;;; Γ ,, vass n t |- b : tSort s2 ->
+    Σ ;;; Γ ,, vass n Relevant t |- b : tSort s2 ->
     Σ ;;; Γ |- (tProd n Relevant t b) : tSort (Universe.sup s1 s2)
 
 | type_Lambda n n' t b s1 bty :
     Σ ;;; Γ |- t : tSort s1 ->
-    Σ ;;; Γ ,, vass n t |- b : bty ->
+    Σ ;;; Γ ,, vass n Relevant t |- b : bty ->
     Σ ;;; Γ |- (tLambda n Relevant t b) : tProd n' Relevant t bty
 
 | type_LetIn n b b_ty b' s1 b'_ty :
     Σ ;;; Γ |- b_ty : tSort s1 ->
     Σ ;;; Γ |- b : b_ty ->
-    Σ ;;; Γ ,, vdef n b b_ty |- b' : b'_ty ->
+    Σ ;;; Γ ,, vdef n Relevant b b_ty |- b' : b'_ty ->
     Σ ;;; Γ |- (tLetIn n Relevant b b_ty b') : tLetIn n Relevant b b_ty b'_ty
 
 | type_App t l t_ty t' :
@@ -590,7 +593,7 @@ Inductive type_projections (Σ : global_context) (Γ : context) :
     type_projections Σ Γ ((id, t) :: l).
       
 Definition arities_context (l : list one_inductive_body) :=
-  List.map (fun ind => vass (nNamed ind.(ind_name)) ind.(ind_type)) l.
+  List.map (fun ind => vass (nNamed ind.(ind_name)) Relevant ind.(ind_type)) l.
 
 Definition isArity Σ Γ T :=
   isType Σ Γ T (* FIXME  /\ decompose_prod_n *).
@@ -608,7 +611,7 @@ Inductive type_inddecls (Σ : global_context) (pars : context) (Γ : context) :
     (** Constructors are well-typed *)
     type_constructors Σ Γ cstrs ->
     (** Projections are well-typed *)
-    type_projections Σ (Γ ,,, pars ,, vass nAnon ty) projs ->
+    type_projections Σ (Γ ,,, pars ,, vass nAnon Relevant ty) projs ->
     (** The other inductives in the block are well-typed *)
     type_inddecls Σ pars Γ l ->
     (** TODO: check kelim*)
@@ -937,19 +940,19 @@ Lemma typing_ind_env :
     (forall Σ (wfΣ : wf Σ) (Γ : context) (n : name) (r : relevance) (t b : term) (s1 s2 : universe),
         Σ ;;; Γ |- t : tSort s1 ->
         P Σ Γ t (tSort s1) ->
-        Σ ;;; Γ,, vass n t |- b : tSort s2 ->
-        P Σ (Γ,, vass n t) b (tSort s2) -> P Σ Γ (tProd n r t b) (tSort (Universe.sup s1 s2))) ->
+        Σ ;;; Γ,, vass n  Relevant t |- b : tSort s2 ->
+        P Σ (Γ,, vass n  Relevant t) b (tSort s2) -> P Σ Γ (tProd n r t b) (tSort (Universe.sup s1 s2))) ->
     (forall Σ (wfΣ : wf Σ) (Γ : context) (n n' : name) (r r': relevance) (t b : term) (s1 : universe) (bty : term),
         Σ ;;; Γ |- t : tSort s1 ->
         P Σ Γ t (tSort s1) ->
-        Σ ;;; Γ,, vass n t |- b : bty -> P Σ (Γ,, vass n t) b bty -> P Σ Γ (tLambda n r t b) (tProd n' r' t bty)) ->
+        Σ ;;; Γ,, vass n  Relevant t |- b : bty -> P Σ (Γ,, vass n  Relevant t) b bty -> P Σ Γ (tLambda n r t b) (tProd n' r' t bty)) ->
     (forall Σ (wfΣ : wf Σ) (Γ : context) (n : name) (r : relevance) (b b_ty b' : term) (s1 : universe) (b'_ty : term),
         Σ ;;; Γ |- b_ty : tSort s1 ->
         P Σ Γ b_ty (tSort s1) ->
         Σ ;;; Γ |- b : b_ty ->
         P Σ Γ b b_ty ->
-        Σ ;;; Γ,, vdef n b b_ty |- b' : b'_ty ->
-        P Σ (Γ,, vdef n b b_ty) b' b'_ty -> P Σ Γ (tLetIn n r b b_ty b') (tLetIn n r b b_ty b'_ty)) ->
+        Σ ;;; Γ,, vdef n  Relevant b b_ty |- b' : b'_ty ->
+        P Σ (Γ,, vdef n  Relevant b b_ty) b' b'_ty -> P Σ Γ (tLetIn n r b b_ty b') (tLetIn n r b b_ty b'_ty)) ->
     (forall Σ (wfΣ : wf Σ) (Γ : context) (t : term) (l : list term) (t_ty t' : term),
         Σ ;;; Γ |- t : t_ty -> P Σ Γ t t_ty -> typing_spine Σ Γ t_ty l t' -> P Σ Γ (tApp t l) t') ->
 

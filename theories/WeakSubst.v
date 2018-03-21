@@ -21,6 +21,7 @@ Qed.
 
 Definition map_decl (f : term -> term) (d : context_decl) : context_decl :=
   {| decl_name := d.(decl_name);
+     decl_relevance := d.(decl_relevance);
      decl_body := option_map f d.(decl_body);
      decl_type := f d.(decl_type) |}.
 
@@ -198,7 +199,7 @@ Proof.
 
   - econstructor; auto.
     simpl.
-    specialize (IHtyping2 Γ (Γ' ,, vass n t) HΣ).
+    specialize (IHtyping2 Γ (Γ' ,, vass n Relevant t) HΣ).
     forward IHtyping2. constructor; simpl; auto. red. now exists s1.
     specialize (IHtyping2 eq_refl Γ'').
     forward IHtyping2. rewrite lift_context_snoc. constructor. simpl; auto.
@@ -208,7 +209,7 @@ Proof.
 
   - econstructor; auto.
     simpl.
-    specialize (IHtyping2 Γ (Γ' ,, vass n t) HΣ).
+    specialize (IHtyping2 Γ (Γ' ,, vass n  Relevant t) HΣ).
     forward IHtyping2. constructor; simpl; auto. red. now exists s1.
     specialize (IHtyping2 eq_refl Γ'').
     forward IHtyping2. rewrite lift_context_snoc. constructor. simpl; auto.
@@ -218,7 +219,7 @@ Proof.
 
   - econstructor; auto.
     simpl.
-    specialize (IHtyping3 Γ (Γ' ,, vdef n b b_ty) HΣ).
+    specialize (IHtyping3 Γ (Γ' ,, vdef n  Relevant b b_ty) HΣ).
     forward IHtyping3. constructor; simpl; auto. 
     specialize (IHtyping3 eq_refl Γ'').
     forward IHtyping3. rewrite lift_context_snoc, Nat.add_0_r.
@@ -259,7 +260,7 @@ Qed.
 
 Lemma substitution Σ Γ n u U (t : term) :
   type_global_env (snd Σ) (fst Σ) -> type_local_env Σ Γ ->
-  `(Σ ;;; Γ ,, vass n U |- t : T -> Σ ;;; Γ |- u : U ->
+  `(Σ ;;; Γ ,, vass n  Relevant  U |- t : T -> Σ ;;; Γ |- u : U ->
     Σ ;;; Γ |- t {0 := u} : T {0 := u}).
 Proof.
   intros HΣ HΓ * Ht Hu.

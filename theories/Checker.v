@@ -18,6 +18,10 @@ Import MonadNotation.
   This file implements reduction with a stack machine [reduce_stack],
   conversion/cumulativity with the first-order fast-path heuristic [isconv]
   that are used to type-check terms in reasonable time. *)
+
+(* SPROP : we make this work with the sProp version of Coq by adding a relevance parameter to appropriate constructors.
+   It's kept general if possible, or made Relevant is there is no obvious choice. In general, this could be appropriately chagned in the future.*)
+
 Set Asymmetric Patterns.
 
 Ltac start :=
@@ -85,7 +89,7 @@ Section Reduce.
         (** CBV reduction: we reduce arguments before substitution *)
         a' <- reduce_stack Γ n a [] ;;
         reduce_stack Γ n (subst0 (zip a') b) args'
-      | _ => b' <- reduce_stack (Γ ,, vass na ty) n b stack ;;
+      | _ => b' <- reduce_stack (Γ ,, vass na r ty) n b stack ;;
                ret (tLambda na r ty (zip b'), stack)
       end
     else ret (t, stack)
@@ -107,7 +111,7 @@ Section Reduce.
 
   | tProd na r b t =>
     b' <- reduce_stack Γ n b [] ;;
-    t' <- reduce_stack (Γ ,, vass na (zip b')) n t [] ;;
+    t' <- reduce_stack (Γ ,, vass na r (zip b')) n t [] ;;
     ret (tProd na r (zip b') (zip t'), stack)
 
   | tCast c _ _ => reduce_stack Γ n c stack
@@ -134,7 +138,7 @@ Section Reduce.
     let fix aux acc ds :=
         match ds with
         | nil => acc
-        | d :: ds => aux (vass d.(dname) d.(dtype) :: acc) ds
+        | d :: ds => aux (vass d.(dname) d.(drelev) d.(dtype) :: acc) ds
         end
     in aux [] l.
   Close Scope string_scope.
@@ -146,12 +150,12 @@ Section Reduce.
     | tApp u v => tApp (f Γ u) (List.map (f Γ) v)
     | tProd na r A B =>
       let A' := f Γ A in
-      tProd na r A' (f (Γ ,, vass na A') B)
+      tProd na r A' (f (Γ ,, vass na r A') B)
     | tCast c kind t => tCast (f Γ c) kind (f Γ t)
     | tLetIn na r b t b' =>
       let b' := f Γ b in
       let t' := f Γ t in
-      tLetIn na r b' t' (f (Γ ,, vdef na b' t') b')
+      tLetIn na r b' t' (f (Γ ,, vdef na r b' t') b')
     | tCase ind r p c brs =>
       let brs' := List.map (on_snd (f Γ)) brs in
       tCase ind r (f Γ p) (f Γ c) brs'
@@ -305,16 +309,16 @@ Section Conversion.
           end
         end
 
-    | tLambda na _ b t, tLambda _ _ b' t' =>
+    | tLambda na r b t, tLambda _ _ b' t' =>
       cnv <- isconv n Conv Γ b [] b' [] ;;
       if (cnv : bool) then
-        isconv n Conv (Γ ,, vass na b) t [] t' []
+        isconv n Conv (Γ ,, vass na r b) t [] t' []
       else ret false
 
-    | tProd na _ b t, tProd _ _ b' t' =>
+    | tProd na r b t, tProd _ _ b' t' =>
       cnv <- isconv n Conv Γ b [] b' [] ;;
       if (cnv : bool) then
-        isconv n leq (Γ ,, vass na b) t [] t' []
+        isconv n leq (Γ ,, vass na r b) t [] t' []
       else ret false
 
     | tCase (ind, par) r p c brs,
@@ -682,20 +686,20 @@ Section Typecheck2.
       infer_cumul infer Γ c t ;;
       ret t
 
-    | tProd n _ t b =>
+    | tProd n r t b =>
       s1 <- infer_type infer Γ t ;;
-      s2 <- infer_type infer (Γ ,, vass n t) b ;;
+      s2 <- infer_type infer (Γ ,, vass n r t) b ;;
       ret (tSort (Universe.sup s1 s2))
 
     | tLambda n r t b =>
       infer_type infer Γ t ;;
-      t2 <- infer (Γ ,, vass n t) b ;;
+      t2 <- infer (Γ ,, vass n r t) b ;;
       ret (tProd n r t t2)
 
     | tLetIn n r b b_ty b' =>
       infer_type infer Γ b_ty ;;
        infer_cumul infer Γ b b_ty ;;
-       b'_ty <- infer (Γ ,, vdef n b b_ty) b' ;;
+       b'_ty <- infer (Γ ,, vdef n r b b_ty) b' ;;
        ret (tLetIn n r b b_ty b'_ty)
 
     | tApp t l =>
