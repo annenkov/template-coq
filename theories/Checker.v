@@ -1120,3 +1120,26 @@ Section Checker.
     check_wf_env Σ ;; infer_term Σ (snd p).
 
 End Checker.
+
+Section Relevance.
+
+ 
+  Inductive rel_result :=
+  | RelOk : relevance -> rel_result
+  | RelNotSort : term -> rel_result
+  | RelTypingError : type_error -> rel_result.
+
+ Import ListNotations.
+
+ (* TODO : this is too restrictive to determine relevance. *)
+  Definition to_relevance c : rel_result  :=
+  match c with
+  | Checked (tSort ([(Level.Level "SProp", _)])) => RelOk Irrelevant
+  | Checked (tSort _) => RelOk Relevant
+  | Checked trm => RelNotSort trm
+  | TypeError te => RelTypingError te
+  end.
+
+  Definition relevance_of_type (g_decls : global_declarations) (ctx : context) (trm : term)
+    : rel_result  := to_relevance (infer (reconstruct_global_context g_decls) ctx trm).
+End Relevance.

@@ -7,7 +7,7 @@ Require Import Coq.Strings.Ascii.
 Require Import Coq.Bool.Bool.
 Import ListNotations.
 
-Require Import Template.TemplateCoqChecker.
+(* Require Import Template.TemplateCoqChecker. *)
 Require Import Template.Typing.
 Require Import Template.Checker.
 Require Import Template.Ast.
@@ -39,6 +39,7 @@ Ltac infer := cbn; intros; constructor;
   end.
 
 Example typecheck_four : type_program four natr := ltac:(typecheck).
+
 
 Goal exists ty, type_program four ty.
 Proof.

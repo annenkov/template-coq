@@ -9,8 +9,8 @@ coq: Makefile.coq
 
 install: Makefile.coq
 	$(MAKE) -f Makefile.coq install
-	$(MAKE) -f Makefile.coqplugin install
-	$(MAKE) -f Makefile.coqchecker install
+	# $(MAKE) -f Makefile.coqplugin install
+	# $(MAKE) -f Makefile.coqchecker install
 
 html: all
 	$(MAKE) -f Makefile.coq html
