@@ -1492,12 +1492,12 @@ since  [absrt_info] is a private type *)
       match Q.inspectTerm trm with
         ACoq_tApp (f, xs) -> app_full_abs f (xs @ acc)
       | _ -> (trm, acc)
-    
+
     let str_abs (t: Q.t) :Pp.t = Q.print_term t (* unfold this defn everywhere and delete*)
     let not_supported_verb (t: Q.t) s = CErrors.user_err (Pp.(str_abs t ++ Pp.str s))
-    let bad_term (t: Q.t) = not_supported_verb t "bad_term" 
-          
-  (** NOTE: Because the representation is lossy, I should probably
+    let bad_term (t: Q.t) = not_supported_verb t "bad_term"
+
+(** NOTE: Because the representation is lossy, I should probably
    ** come back through elaboration.
    ** - This would also allow writing terms with holes
    **)
@@ -1514,16 +1514,16 @@ let denote_term evdref (trm: Q.t) : Constr.t =
   | ACoq_tProd (n,r,t,b) -> Constr.mkProd (Q.unquote_name n, Q.unquote_relevance r, aux t, aux b)
   | ACoq_tLambda (n,r,t,b) -> Constr.mkLambda (Q.unquote_name n, Q.unquote_relevance r, aux t, aux b)
   | ACoq_tLetIn (n,r,e,t,b) -> Constr.mkLetIn (Q.unquote_name n, Q.unquote_relevance r, aux e, aux t, aux b)
-  | ACoq_tApp (f,xs) ->   
+  | ACoq_tApp (f,xs) ->
       Constr.mkApp (aux f, Array.of_list (List.map aux  xs))
-  | ACoq_tConst (s,_) ->   
+  | ACoq_tConst (s,_) ->
        (* TODO: unquote universes *)
-       let s = (Q.unquote_kn s) in 
+       let s = (Q.unquote_kn s) in
        (try
          match Nametab.locate s with
          | Globnames.ConstRef c ->
             EConstr.Unsafe.to_constr (Evarutil.e_new_global evdref (Globnames.ConstRef c))
-         | Globnames.IndRef _ -> CErrors.user_err (str "the constant is an inductive. use tInd : " 
+         | Globnames.IndRef _ -> CErrors.user_err (str "the constant is an inductive. use tInd : "
               ++  Pp.str (Libnames.string_of_qualid s))
          | Globnames.VarRef _ -> CErrors.user_err (str "the constant is a variable. use tVar : " ++ Pp.str (Libnames.string_of_qualid s))
          | Globnames.ConstructRef _ -> CErrors.user_err (str "the constant is a consructor. use tConstructor : "++ Pp.str (Libnames.string_of_qualid s))
@@ -2088,10 +2088,9 @@ VERNAC COMMAND EXTEND Run_program CLASSIFIED AS SIDEFF
     | [ "Run" "TemplateProgram" constr(def) ] ->
       [ check_inside_section () ;
 	let (evm, env) = Pfedit.get_current_context () in
-        let (def, _) = Constrintern.interp_constr env evm def in
-        (* todo : uctx ? *)
+        let (def, uctx) = Constrintern.interp_constr env evm def in
         (* TODO put back EConstr.to_constr evm def when master branch merged to sprop *)
-        Denote.run_template_program_rec (fun _ -> ()) (evm, def) ]
+        Denote.run_template_program_rec (fun _ -> ()) (Evd.from_ctx uctx, def) ]
 END;;
 
 VERNAC COMMAND EXTEND Make_tests CLASSIFIED AS QUERY
