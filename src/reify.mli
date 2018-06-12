@@ -71,7 +71,7 @@ module type Quoter = sig
   val quote_sort : Sorts.t -> quoted_sort
   val quote_sort_family : Sorts.family -> quoted_sort_family
   val quote_cast_kind : Constr.cast_kind -> quoted_cast_kind
-  val quote_kn : kernel_name -> quoted_kernel_name
+  val quote_kn : KerName.t -> quoted_kernel_name
   val quote_inductive : quoted_kernel_name * quoted_int -> quoted_inductive
   val quote_proj : quoted_inductive -> quoted_int -> quoted_int -> quoted_proj
 
