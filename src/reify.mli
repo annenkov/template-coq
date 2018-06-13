@@ -84,7 +84,7 @@ module type Quoter = sig
   val quote_inductive_universes : Entries.inductive_universes -> quoted_inductive_universes
 
   val quote_mind_params : (quoted_ident * (t,t) sum) list -> quoted_mind_params
-  val quote_mind_finiteness : Decl_kinds.recursivity_kind -> quoted_mind_finiteness
+  val quote_mind_finiteness : Declarations.recursivity_kind -> quoted_mind_finiteness
   val quote_mutual_inductive_entry :
     quoted_mind_finiteness * quoted_mind_params * quoted_ind_entry list *
     quoted_inductive_universes ->
@@ -155,7 +155,7 @@ module type Quoter = sig
 end
 
 module Reify(Q : Quoter) : sig
-  val quote_mind_decl : Environ.env -> Names.mutual_inductive -> Q.quoted_global_decl
+  val quote_mind_decl : Environ.env -> MutInd.t -> Q.quoted_global_decl
   val quote_term : Environ.env -> Constr.t -> Q.t
   val quote_term_rec : Environ.env -> Constr.t -> Q.quoted_program
 end

@@ -35,7 +35,7 @@ let debug (m : unit ->Pp.t) =
     ()
 
 (* SPROP: added [relevance] papameter *)
-let toDecl (old: Names.name * Sorts.relevance * ((Constr.constr) option) * Constr.constr) : Context.Rel.Declaration.t =
+let toDecl (old: Name.t * Sorts.relevance * ((Constr.constr) option) * Constr.constr) : Context.Rel.Declaration.t =
   let (name,relevance,value,typ) = old in
   match value with
   | Some value -> Context.Rel.Declaration.LocalDef (name,relevance,value,typ)
