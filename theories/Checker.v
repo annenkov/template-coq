@@ -1001,12 +1001,12 @@ Section Typecheck2.
     - (* Construct *) admit.
 
     - (* Case *)
-      destruct p.
-      infers.
-      destruct reduce_to_ind eqn:?; try discriminate. simpl.
-      destruct a0 as [[ind' u] args].
-      destruct eq_ind eqn:?; try discriminate.
-      intros [= <-].
+      (* destruct n. *)
+      (* infers. *)
+      (* destruct reduce_to_ind eqn:?; try discriminate. simpl. *)
+      (* destruct a0 as [[ind' u] args]. *)
+      (* destruct eq_ind eqn:?; try discriminate. *)
+      (* intros [= <-]. *)
       admit.
       (* eapply type_Case. simpl in *. *)
       (* eapply type_Conv. eauto. *)
@@ -1016,15 +1016,15 @@ Section Typecheck2.
       (* rewrite Heqt0. repeat f_equal. apply eq_ind_refl in Heqb. congruence. *)
       (* tc. *)
 
-    - (* Proj *) admit.
+    (* - (* Proj *) admit. *)
 
-    - destruct nth_error eqn:?; intros [= <-].
-      destruct (nth_error_Some_safe_nth _ _ _ _ Heqo).
-      constructor.
+    (* - destruct nth_error eqn:?; intros [= <-]. *)
+    (*   destruct (nth_error_Some_safe_nth _ _ _ _ Heqo). *)
+    (*   constructor. *)
 
-    - destruct nth_error eqn:?; intros [= <-].
-      destruct (nth_error_Some_safe_nth _ _ _ _ Heqo).
-      constructor.
+    (* - destruct nth_error eqn:?; intros [= <-]. *)
+    (*   destruct (nth_error_Some_safe_nth _ _ _ _ Heqo). *)
+    (*   constructor. *)
   Admitted.
   
 End Typecheck2.

@@ -171,20 +171,20 @@ Definition iota_red npar c args brs :=
 Inductive red1 (Σ : global_declarations) (Γ : context) : term -> term -> Prop :=
 (** Reductions *)
 (** Beta *)
-| red_beta na t b a l :
-    red1 Σ Γ (tApp (tLambda na Relevant t b) (a :: l)) (mkApps (subst0 a b) l)
+| red_beta na t b a l relevance :
+    red1 Σ Γ (tApp (tLambda na relevance t b) (a :: l)) (mkApps (subst0 a b) l)
 
 (** Let *)
-| red_zeta na b t b' :
-    red1 Σ Γ (tLetIn na Relevant b t b') (subst0 b b')
+| red_zeta na b t b' relevance:
+    red1 Σ Γ (tLetIn na relevance b t b') (subst0 b b')
 
 | red_rel i (isdecl : i < List.length Γ) body :
     (safe_nth Γ (exist _ i isdecl)).(decl_body) = Some body ->
     red1 Σ Γ (tRel i) (lift0 (S i) body) 
          
 (** Case *)
-| red_iota ind pars c u args p brs :
-    red1 Σ Γ (tCase (ind, pars) Relevant p (mkApps (tConstruct ind c u) args) brs)
+| red_iota ind pars c u args p brs relevance :
+    red1 Σ Γ (tCase (ind, pars) relevance p (mkApps (tConstruct ind c u) args) brs)
          (iota_red pars c args brs)
 
 (** Fix unfolding, with guard *)
@@ -200,22 +200,22 @@ Inductive red1 (Σ : global_declarations) (Γ : context) : term -> term -> Prop 
 
 (* TODO Proj CoFix *)
          
-| abs_red_l na M M' N : red1 Σ Γ M M' -> red1 Σ Γ (tLambda na Relevant M N) (tLambda na Relevant M' N)
-| abs_red_r na M M' N : red1 Σ (Γ ,, vass na Relevant N) M M' -> red1 Σ Γ (tLambda na Relevant N M) (tLambda na Relevant N M')
+| abs_red_l na M M' N  relevance : red1 Σ Γ M M' -> red1 Σ Γ (tLambda na relevance M N) (tLambda na relevance M' N)
+| abs_red_r na M M' N relevance : red1 Σ (Γ ,, vass na relevance N) M M' -> red1 Σ Γ (tLambda na relevance N M) (tLambda na relevance N M')
 
-| letin_red_def na b t b' r : red1 Σ Γ b r -> red1 Σ Γ (tLetIn na Relevant b t b') (tLetIn na Relevant r t b')
-| letin_red_ty na b t b' r : red1 Σ Γ t r -> red1 Σ Γ (tLetIn na Relevant b t b') (tLetIn na Relevant b r b')
-| letin_red_body na b t b' r : red1 Σ (Γ ,, vdef na Relevant b t) b' r -> red1 Σ Γ (tLetIn na Relevant b t b') (tLetIn na Relevant b t r)
+| letin_red_def na b t b' r relevance : red1 Σ Γ b r -> red1 Σ Γ (tLetIn na relevance b t b') (tLetIn na relevance r t b')
+| letin_red_ty na b t b' r relevance : red1 Σ Γ t r -> red1 Σ Γ (tLetIn na relevance b t b') (tLetIn na relevance b r b')
+| letin_red_body na b t b' relevance r : red1 Σ (Γ ,, vdef na relevance b t) b' r -> red1 Σ Γ (tLetIn na relevance b t b') (tLetIn na relevance b t r)
 
-| case_red_discr ind p c c' brs : red1 Σ Γ c c' -> red1 Σ Γ (tCase ind Relevant p c brs) (tCase ind Relevant p c' brs)
-| case_red_brs ind p c brs brs' : redbrs1 Σ Γ brs brs' -> red1 Σ Γ (tCase ind Relevant p c brs) (tCase ind Relevant p c brs')
+| case_red_discr ind p c c' brs relevance : red1 Σ Γ c c' -> red1 Σ Γ (tCase ind relevance p c brs) (tCase ind relevance p c' brs)
+| case_red_brs ind p c brs brs' relevance : redbrs1 Σ Γ brs brs' -> red1 Σ Γ (tCase ind relevance p c brs) (tCase ind relevance p c brs')
 
 | app_red_l M1 N1 M2 : red1 Σ Γ M1 N1 -> red1 Σ Γ (tApp M1 M2) (tApp N1 M2)
 | app_red_r M2 N2 M1 : reds1 Σ Γ M2 N2 -> red1 Σ Γ (tApp M1 M2) (tApp M1 N2)
 
-| prod_red_l na na' M1 M2 N1 : red1 Σ Γ M1 N1 -> red1 Σ Γ (tProd na Relevant M1 M2) (tProd na' Relevant N1 M2)
-| prod_red_r na na' M2 N2 M1 : red1 Σ (Γ ,, vass na Relevant M1) M2 N2 ->
-                               red1 Σ Γ (tProd na Relevant M1 M2) (tProd na' Relevant M1 N2)
+| prod_red_l na na' M1 M2 N1 relevance : red1 Σ Γ M1 N1 -> red1 Σ Γ (tProd na relevance M1 M2) (tProd na' relevance N1 M2)
+| prod_red_r na na' M2 N2 M1 relevance : red1 Σ (Γ ,, vass na relevance M1) M2 N2 ->
+                               red1 Σ Γ (tProd na relevance M1 M2) (tProd na' relevance M1 N2)
 
 | evar ev l l' : reds1 Σ Γ l l' -> red1 Σ Γ (tEvar ev l) (tEvar ev l')
 
@@ -448,10 +448,10 @@ Axiom cumul_trans : forall Σ Γ t u v, Σ ;;; Γ |- t <= u -> Σ ;;; Γ |- u <=
 
 Hint Resolve conv_refl cumul_refl' : typecheck.
 
-Conjecture congr_cumul_prod : forall Σ Γ na na' M1 M2 N1 N2,
+Conjecture congr_cumul_prod : forall Σ Γ na na' M1 M2 N1 N2 relevance,
     cumul Σ Γ M1 N1 ->
-    cumul Σ (Γ ,, vass na Relevant M1) M2 N2 ->
-    cumul Σ Γ (tProd na Relevant M1 M2) (tProd na' Relevant N1 N2).
+    cumul Σ (Γ ,, vass na relevance M1) M2 N2 ->
+    cumul Σ Γ (tProd na relevance M1 M2) (tProd na' relevance N1 N2).
 
 (** ** Typing relation *)
 
@@ -467,21 +467,21 @@ Inductive typing (Σ : global_context) (Γ : context) : term -> term -> Type :=
     Σ ;;; Γ |- c : t ->
     Σ ;;; Γ |- (tCast c k t) : t
 
-| type_Prod n t b s1 s2 :
+| type_Prod n t b s1 s2 relevance :
     Σ ;;; Γ |- t : tSort s1 ->
-    Σ ;;; Γ ,, vass n Relevant t |- b : tSort s2 ->
-    Σ ;;; Γ |- (tProd n Relevant t b) : tSort (Universe.sup s1 s2)
+    Σ ;;; Γ ,, vass n relevance t |- b : tSort s2 ->
+    Σ ;;; Γ |- (tProd n relevance t b) : tSort (Universe.sup s1 s2)
 
-| type_Lambda n n' t b s1 bty :
+| type_Lambda n n' t b s1 bty relevance:
     Σ ;;; Γ |- t : tSort s1 ->
-    Σ ;;; Γ ,, vass n Relevant t |- b : bty ->
-    Σ ;;; Γ |- (tLambda n Relevant t b) : tProd n' Relevant t bty
+    Σ ;;; Γ ,, vass n relevance t |- b : bty ->
+    Σ ;;; Γ |- (tLambda n relevance t b) : tProd n' relevance t bty
 
-| type_LetIn n b b_ty b' s1 b'_ty :
+| type_LetIn n b b_ty b' s1 b'_ty relevance:
     Σ ;;; Γ |- b_ty : tSort s1 ->
     Σ ;;; Γ |- b : b_ty ->
-    Σ ;;; Γ ,, vdef n Relevant b b_ty |- b' : b'_ty ->
-    Σ ;;; Γ |- (tLetIn n Relevant b b_ty b') : tLetIn n Relevant b b_ty b'_ty
+    Σ ;;; Γ ,, vdef n relevance b b_ty |- b' : b'_ty ->
+    Σ ;;; Γ |- (tLetIn n relevance b b_ty b') : tLetIn n relevance b b_ty b'_ty
 
 | type_App t l t_ty t' :
     Σ ;;; Γ |- t : t_ty ->
@@ -503,7 +503,7 @@ Inductive typing (Σ : global_context) (Γ : context) : term -> term -> Type :=
     consistent_universe_context_instance Σ univs u ->
     Σ ;;; Γ |- (tConstruct ind i u) : type_of_constructor (fst Σ) (ind, i) univs u decl isdecl
 
-| type_Case ind u npar p c brs args :
+| type_Case ind u npar p c brs args relevance :
     forall decl (isdecl : declared_minductive (fst Σ) (inductive_mind ind) decl),
     forall univs decl' (isdecl' : declared_inductive (fst Σ) ind univs decl'),
     decl.(ind_npars) = npar ->
@@ -513,7 +513,7 @@ Inductive typing (Σ : global_context) (Γ : context) : term -> term -> Type :=
     Σ ;;; Γ |- p : pty ->
     Σ ;;; Γ |- c : mkApps (tInd ind u) args ->
     Forall2 (fun x y => fst x = fst y /\ squash (Σ ;;; Γ |- snd x : snd y)) brs btys ->
-    Σ ;;; Γ |- tCase (ind, npar) Relevant p c brs : tApp p (List.skipn npar args ++ [c])
+    Σ ;;; Γ |- tCase (ind, npar) relevance p c brs : tApp p (List.skipn npar args ++ [c])
 
 | type_Proj p c u :
     forall decl (isdecl : declared_projection (fst Σ) p decl) args,
@@ -545,8 +545,8 @@ where " Σ ;;; Γ |- t : T " := (@typing Σ Γ t T) : type_scope
 
 with typing_spine (Σ : global_context) (Γ : context) : term -> list term -> term -> Prop :=
 | type_spine_nil ty : typing_spine Σ Γ ty [] ty
-| type_spine_const hd tl na A B T B' :
-    Σ ;;; Γ |- tProd na Relevant A B <= T ->
+| type_spine_const hd tl na A B T B' relevance:
+    Σ ;;; Γ |- tProd na relevance A B <= T ->
     Σ ;;; Γ |- hd : A ->
     typing_spine Σ Γ (subst0 hd B) tl B' ->
     typing_spine Σ Γ T (cons hd tl) B'.
@@ -937,22 +937,22 @@ Lemma typing_ind_env :
     (forall Σ (wfΣ : wf Σ) (Γ : context) (l : Level.t), P Σ Γ (tSort (Universe.make l)) (tSort (Universe.super l))) ->
     (forall Σ (wfΣ : wf Σ) (Γ : context) (c : term) (k : cast_kind) (t : term) (s : universe),
         Σ ;;; Γ |- t : tSort s -> P Σ Γ t (tSort s) -> Σ ;;; Γ |- c : t -> P Σ Γ c t -> P Σ Γ (tCast c k t) t) ->
-    (forall Σ (wfΣ : wf Σ) (Γ : context) (n : name) (r : relevance) (t b : term) (s1 s2 : universe),
+    (forall Σ (wfΣ : wf Σ) (Γ : context) (n : name) (r : relevance) (t b : term) (s1 s2 : universe) ,
         Σ ;;; Γ |- t : tSort s1 ->
         P Σ Γ t (tSort s1) ->
-        Σ ;;; Γ,, vass n  Relevant t |- b : tSort s2 ->
-        P Σ (Γ,, vass n  Relevant t) b (tSort s2) -> P Σ Γ (tProd n r t b) (tSort (Universe.sup s1 s2))) ->
+        Σ ;;; Γ,, vass n  r t |- b : tSort s2 ->
+        P Σ (Γ,, vass n r t) b (tSort s2) -> P Σ Γ (tProd n r t b) (tSort (Universe.sup s1 s2))) ->
     (forall Σ (wfΣ : wf Σ) (Γ : context) (n n' : name) (r r': relevance) (t b : term) (s1 : universe) (bty : term),
         Σ ;;; Γ |- t : tSort s1 ->
         P Σ Γ t (tSort s1) ->
-        Σ ;;; Γ,, vass n  Relevant t |- b : bty -> P Σ (Γ,, vass n  Relevant t) b bty -> P Σ Γ (tLambda n r t b) (tProd n' r' t bty)) ->
+        Σ ;;; Γ,, vass n r t |- b : bty -> P Σ (Γ,, vass n r' t) b bty -> P Σ Γ (tLambda n r t b) (tProd n' r' t bty)) ->
     (forall Σ (wfΣ : wf Σ) (Γ : context) (n : name) (r : relevance) (b b_ty b' : term) (s1 : universe) (b'_ty : term),
         Σ ;;; Γ |- b_ty : tSort s1 ->
         P Σ Γ b_ty (tSort s1) ->
         Σ ;;; Γ |- b : b_ty ->
         P Σ Γ b b_ty ->
-        Σ ;;; Γ,, vdef n  Relevant b b_ty |- b' : b'_ty ->
-        P Σ (Γ,, vdef n  Relevant b b_ty) b' b'_ty -> P Σ Γ (tLetIn n r b b_ty b') (tLetIn n r b b_ty b'_ty)) ->
+        Σ ;;; Γ,, vdef n r b b_ty |- b' : b'_ty ->
+        P Σ (Γ,, vdef n  r b b_ty) b' b'_ty -> P Σ Γ (tLetIn n r b b_ty b') (tLetIn n r b b_ty b'_ty)) ->
     (forall Σ (wfΣ : wf Σ) (Γ : context) (t : term) (l : list term) (t_ty t' : term),
         Σ ;;; Γ |- t : t_ty -> P Σ Γ t t_ty -> typing_spine Σ Γ t_ty l t' -> P Σ Γ (tApp t l) t') ->
 

@@ -199,7 +199,7 @@ Proof.
 
   - econstructor; auto.
     simpl.
-    specialize (IHtyping2 Γ (Γ' ,, vass n Relevant t) HΣ).
+    specialize (IHtyping2 Γ (Γ' ,, vass n relevance t) HΣ).
     forward IHtyping2. constructor; simpl; auto. red. now exists s1.
     specialize (IHtyping2 eq_refl Γ'').
     forward IHtyping2. rewrite lift_context_snoc. constructor. simpl; auto.
@@ -209,7 +209,7 @@ Proof.
 
   - econstructor; auto.
     simpl.
-    specialize (IHtyping2 Γ (Γ' ,, vass n  Relevant t) HΣ).
+    specialize (IHtyping2 Γ (Γ' ,, vass n relevance t) HΣ).
     forward IHtyping2. constructor; simpl; auto. red. now exists s1.
     specialize (IHtyping2 eq_refl Γ'').
     forward IHtyping2. rewrite lift_context_snoc. constructor. simpl; auto.
@@ -219,7 +219,7 @@ Proof.
 
   - econstructor; auto.
     simpl.
-    specialize (IHtyping3 Γ (Γ' ,, vdef n  Relevant b b_ty) HΣ).
+    specialize (IHtyping3 Γ (Γ' ,, vdef n relevance b b_ty) HΣ).
     forward IHtyping3. constructor; simpl; auto. 
     specialize (IHtyping3 eq_refl Γ'').
     forward IHtyping3. rewrite lift_context_snoc, Nat.add_0_r.
