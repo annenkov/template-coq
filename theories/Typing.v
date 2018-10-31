@@ -641,7 +641,7 @@ Definition type_global_decl Σ decl :=
     set of universe constraints should be consistent. *)
 
 Definition contains_init_graph φ :=
-  LevelSet.In Level.prop (fst φ) /\ LevelSet.In Level.set (fst φ) /\
+  LevelSet.In Level.prop (fst φ) /\ LevelSet.In Level.sprop (fst φ) /\ LevelSet.In Level.set (fst φ) /\
   Constraint.In (Level.prop, ConstraintType.Le, Level.set) (snd φ).
 
 Definition wf_graph φ :=

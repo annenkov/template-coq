@@ -25,7 +25,7 @@ Definition edges_of_constraint (uc : univ_constraint) : list edge
      end.
 
 Definition init_graph : t :=
-  let levels := LevelSet.add Level.prop (LevelSet.add Level.set LevelSet.empty) in
+  let levels := LevelSet.add Level.sprop (LevelSet.add Level.prop (LevelSet.add Level.set LevelSet.empty)) in
   let constraints := Constraint.add (Level.prop, ConstraintType.Lt, Level.set) Constraint.empty in
   (levels, constraints).
 
