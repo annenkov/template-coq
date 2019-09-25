@@ -251,7 +251,8 @@ Proof.
     move/andP: H => [H H'].
     eapply Ee.atom_mkApps in H' as [H1 _].
     destruct n, L; discriminate.
-Qed.
+  - exfalso.
+Admitted.
 
 (** ** Prelim on eliminations  *)
 (* Lemma universe_family_is_prop_sort: *)
@@ -311,8 +312,6 @@ Proof.
 Qed.
 
 (** ** Prelim on typing *)
-
-Require Import PCUIC.PCUICGeneration.
 
 Inductive red_decls Σ Γ Γ' : forall (x y : PCUICAst.context_decl), Type :=
 | conv_vass na na' T T' : isType Σ Γ' T' -> red Σ Γ T T' ->
