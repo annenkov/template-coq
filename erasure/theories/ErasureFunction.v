@@ -441,6 +441,45 @@ Next Obligation.
   - sq. econstructor. eauto.
 Qed.
 
+(** Ported from OCaml extraction *)
+(* Inductive info := Logic | Info. *)
+
+(* Inductive scheme := TypeScheme | Default. *)
+
+(* Definition flag := info * scheme. *)
+
+
+(* Definition info_of_family (s : sort_family) := *)
+(*   match s with *)
+(*   | InProp => Logic *)
+(*   | InSet | InType => Info *)
+(*   end. *)
+
+(* Definition info_of_sort u := info_of_family (universe_family u). *)
+
+(* [flag_of_type] transforms a type [t] into a [bool]. *)
+
+Program Definition flag_of_type (Sigma : PCUICAst.global_env_ext) (HΣ : ∥wf_ext Sigma∥) (Gamma : context) (HΓ : ∥wf_local Sigma Gamma∥) (ty : PCUICAst.term) :
+  typing_result bool :=
+  mlet (T; _) <- @make_graph_and_infer _ _ HΣ Gamma HΓ ty ;;
+  mlet b <- is_arity Sigma _ Gamma _ T _ ;;
+  if b : {_} + {_} then
+    ret true
+  else ret false.
+Next Obligation. sq; eauto. Qed.
+Next Obligation.
+  sq. eapply PCUICValidity.validity in X as [_]; eauto.
+  destruct i.
+  econstructor 2. sq. eauto. destruct i. econstructor. econstructor. eauto.
+Qed.
+
+(* let rec flag_of_type env sg t : flag = *)
+(*   let t = whd_all env sg t in *)
+(*   match EConstr.kind sg t with *)
+(*     | Prod (x,t,c) -> flag_of_type (EConstr.push_rel (LocalAssum (x,t)) env) sg c *)
+(*     | tSort s -> (info_of_sort (EConstr.ESorts.kind sg s),TypeScheme) *)
+(*     | _ -> (info_of_family (sort_of env sg t),Default) *)
+
 Section Erase.
 
   Definition is_box c :=
@@ -522,7 +561,11 @@ Section Erase.
       ; erase Γ HΓ (tProd na b t) _ := ret E.tBox
       ; erase Γ HΓ (tLambda na b t) _ :=
                            t' <- erase (vass na b :: Γ) _ t;;
-                              ret (E.tLambda na t')
+                           let dummy := match (flag_of_type Σ HΣ Γ HΓ b) with
+                                       | Checked true => true
+                                       | _ => false
+                                       end in
+                           ret (E.tLambda (E.mkBindAnn na dummy) t')
       ; erase Γ HΓ (tLetIn na b t0 t1) _ :=
                               b' <- erase Γ HΓ b;;
                                  t1' <- erase (vdef na b t0 :: Γ) _ t1;;

@@ -22,7 +22,7 @@ Lemma term_forall_list_ind :
     (forall n : nat, P (tRel n)) ->
     (forall i : ident, P (tVar i)) ->
     (forall (n : nat) (l : list term), Forall P l -> P (tEvar n l)) ->
-    (forall (n : name) (t : term), P t -> P (tLambda n t)) ->
+    (forall (n : aname) (t : term), P t -> P (tLambda n t)) ->
     (forall (n : name) (t : term),
         P t -> forall t0 : term, P t0 -> P (tLetIn n t t0)) ->
     (forall t u : term, P t -> P u -> P (tApp t u)) ->

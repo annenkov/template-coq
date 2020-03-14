@@ -26,12 +26,18 @@ Definition test_def {term : Set} (f : term -> bool) (d : def term) :=
 
 Definition mfixpoint (term : Set) := list (def term).
 
+(** Binders annotated with a "dummy" flag meaning that the the abstraction can be ignored in the extracted code *)
+Record aname :=
+  mkBindAnn { binder_name : name; binder_dummy : bool }.
+
+Coercion aname_to_name := binder_name.
+
 Inductive term : Set :=
 | tBox       : term (* Represents all proofs *)
 | tRel       : nat -> term
 | tVar       : ident -> term (* For free variables (e.g. in a goal) *)
 | tEvar      : nat -> list term -> term
-| tLambda    : name -> term -> term
+| tLambda    : aname -> term -> term
 | tLetIn     : name -> term (* the term *) -> term -> term
 | tApp       : term -> term -> term
 | tConst     : kername -> term

@@ -49,3 +49,23 @@ VERNAC COMMAND EXTEND MetaCoqErase CLASSIFIED AS QUERY
     check env evm c
   ]
 END
+
+let check_deboxed env evm c =
+  Feedback.msg_debug (str"Quoting");
+  let term = time (str"Quoting") (Ast_quoter.quote_term_rec env) (EConstr.to_constr evm c) in
+  let checker_flags = Config0.extraction_checker_flags in
+  let erase = time (str"Erasing and deboxing")
+      (SafeTemplateErasure.erase_and_print_template_program_deboxed checker_flags)
+      term
+  in
+  match erase with
+  | Coq_inl s -> Feedback.msg_info (pr_char_list s)
+  | Coq_inr s -> CErrors.user_err ~hdr:"metacoq" (pr_char_list s)
+
+VERNAC COMMAND EXTEND MetaCoqEraseDebox CLASSIFIED AS QUERY
+| [ "MetaCoq" "EraseDebox" constr(c) ] -> [
+    let (evm,env) = Pfedit.get_current_context () in
+    let (c, _) = Constrintern.interp_constr env evm c in
+    check_deboxed env evm c
+  ]
+END

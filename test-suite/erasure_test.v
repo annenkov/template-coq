@@ -26,6 +26,37 @@ MetaCoq Erase (3 + 1).
 
 Universe i.
 MetaCoq Erase ((fun (X : Set) (x : X) => x) nat).
+(* (fun X : [Set] => fun x : X => x) nat erases to:
+(FUN X => fun x => x) ∎ *)
+
+MetaCoq EraseDebox ((fun (X : Set) (x : X -> unit) (Y : Set) (x0 : X) (Z : Type) =>
+                       (x x0, x))).
+
+(* fun X : [Set] => fun x : ∀ H : X, unit => fun Y : [Set] => fun x0 : X => fun Z : [Top.14] => pair unit (∀ H : X, unit) (x x0) x
+
+erases to:
+
+fun x => fun x0 => pair (x x0) x *)
+
+MetaCoq EraseDebox (fun (A B : Type) (f : A -> B) =>
+fix map (l : list A) : list B :=
+  match l with
+  | nil => nil
+  | (a :: t)%list => (f a :: map t)%list
+  end).
+
+(* fun A : [Top.24] => fun B : [Top.25] => fun f : ∀ H : A, B => let fix map { struct 0 } : ∀ l : list A, list B :=
+fun l : list A => match l as l in list return list A with
+nil => nil B
+ | cons a  t  => cons B (f a) (map t)
+end in map
+
+erases to:
+fun f => let fix map { struct 0 } :=
+fun l => match l with
+nil => nil
+ | cons a  t  => cons (f a) (map t)
+end in map *)
 
 (** Check that optimization of singleton pattern-matchings work *)
 MetaCoq Erase ((fun (X : Set) (x : X) (e : x = x) =>

@@ -36,9 +36,9 @@ Inductive erases (Σ : global_env_ext) (Γ : context) : term -> E.term -> Prop :
   | erases_tVar : forall n : ident, Σ;;; Γ |- tVar n ⇝ℇ E.tVar n
   | erases_tEvar : forall (m m' : nat) (l : list term) (l' : list E.term),
                    All2 (erases Σ Γ) l l' -> Σ;;; Γ |- tEvar m l ⇝ℇ E.tEvar m' l'
-  | erases_tLambda : forall (na : name) (b t : term) (t' : E.term),
+  | erases_tLambda : forall (na : name) (is_dummy : bool) (b t : term) (t' : E.term),
                      Σ;;; (vass na b :: Γ) |- t ⇝ℇ t' ->
-                     Σ;;; Γ |- tLambda na b t ⇝ℇ E.tLambda na t'
+                     Σ;;; Γ |- tLambda na b t ⇝ℇ E.tLambda (E.mkBindAnn na is_dummy) t'
   | erases_tLetIn : forall (na : name) (t1 : term) (t1' : E.term)
                       (T t2 : term) (t2' : E.term),
                     Σ;;; Γ |- t1 ⇝ℇ t1' ->
