@@ -461,24 +461,16 @@ Qed.
 
 Program Definition flag_of_type (Sigma : PCUICAst.global_env_ext) (HΣ : ∥wf_ext Sigma∥) (Gamma : context) (HΓ : ∥wf_local Sigma Gamma∥) (ty : PCUICAst.term) :
   typing_result bool :=
-  mlet (T; _) <- @make_graph_and_infer _ _ HΣ Gamma HΓ ty ;;
-  mlet b <- is_arity Sigma _ Gamma _ T _ ;;
+  (* Typing [ty] to get enough premices to call [is_arity] *)
+  mlet (_; _) <- @make_graph_and_infer _ _ HΣ Gamma HΓ ty ;;
+  mlet b <- is_arity Sigma _ Gamma _ ty _ ;;
   if b : {_} + {_} then
     ret true
   else ret false.
 Next Obligation. sq; eauto. Qed.
 Next Obligation.
-  sq. eapply PCUICValidity.validity in X as [_]; eauto.
-  destruct i.
-  econstructor 2. sq. eauto. destruct i. econstructor. econstructor. eauto.
+  sq. left. eexists;eauto.
 Qed.
-
-(* let rec flag_of_type env sg t : flag = *)
-(*   let t = whd_all env sg t in *)
-(*   match EConstr.kind sg t with *)
-(*     | Prod (x,t,c) -> flag_of_type (EConstr.push_rel (LocalAssum (x,t)) env) sg c *)
-(*     | tSort s -> (info_of_sort (EConstr.ESorts.kind sg s),TypeScheme) *)
-(*     | _ -> (info_of_family (sort_of env sg t),Default) *)
 
 Section Erase.
 

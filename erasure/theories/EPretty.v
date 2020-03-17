@@ -176,96 +176,129 @@ Section print_term.
                               " in " ++ List.nth_default (string_of_nat n) (map (string_of_name ∘ dname) l) n)
   end.
 
-  Fixpoint print_term_deboxed (Γ : context) (top : bool) (inapp : bool) (t : term) {struct t} :=
-  match t with
-  | tBox => ""
-  | tRel n =>
-    match nth_error Γ n with
-    | Some {| decl_name := na |} =>
-      match na with
-      | nAnon => "Anonymous (" ++ string_of_nat n ++ ")"
-      | nNamed id => id
-      end
-    | None => "UnboundRel(" ++ string_of_nat n ++ ")"
-    end
-  | tVar n => "Var(" ++ n ++ ")"
-  | tEvar ev args => "Evar(" ++ string_of_nat ev ++ "[]" (* TODO *)  ++ ")"
-  | tLambda na body =>
-    let na' := fresh_name Γ na t in
-    if (binder_dummy na) then
-      parens top (print_term_deboxed (vass na' :: Γ) true false body)
-    else parens top ("fun" ++ " " ++ string_of_name na'
-                                ++ " => " ++ print_term_deboxed (vass na' :: Γ) true false body)
-  | tLetIn na def body =>
-    let na' := fresh_name Γ na t in
-    parens top ("let" ++ string_of_name na' ++
-                      " := " ++ print_term_deboxed Γ true false def ++ " in " ++ nl ++
-                      print_term_deboxed (vdef na' def :: Γ) true false body)
-  | tApp f l =>
-    match l with
-    | tBox => parens (top || inapp) (print_term_deboxed Γ false true f)
-    | _ => parens (top || inapp) (print_term_deboxed Γ false true f ++ " " ++ print_term_deboxed Γ false false l)
-    end
-  | tConst c => c
-  | tConstruct (mkInd i k as ind) l =>
-    match lookup_ind_decl i k with
-    | Some oib =>
-      match nth_error oib.(ind_ctors) l with
-      | Some (na, _, _) => na
-      | None =>
-        "UnboundConstruct(" ++ string_of_inductive ind ++ "," ++ string_of_nat l ++ ")"
-      end
-    | None =>
-      "UnboundConstruct(" ++ string_of_inductive ind ++ "," ++ string_of_nat l ++ ")"
-    end
-  | tCase (mkInd mind i as ind, pars) t brs =>
-    match lookup_ind_decl mind i with
-    | Some oib =>
-      let fix print_branch Γ arity br {struct br} :=
-          match arity with
-            | 0 => "=> " ++ print_term_deboxed Γ true false br
-            | S n =>
-              match br with
-              | tLambda na B =>
-                let na' := fresh_name Γ na br in
-                string_of_name na' ++ "  " ++ print_branch (vass na' :: Γ) n B
-              | t => "=> " ++ print_term_deboxed Γ true false br
-              end
-            end
-        in
-        let brs := map (fun '(arity, br) =>
-                          print_branch Γ arity br) brs in
-        let brs := combine brs oib.(ind_ctors) in
-        parens top ("match " ++ print_term_deboxed Γ true false t ++
-                    " with " ++ nl ++
-                    print_list (fun '(b, (na, _, _)) => na ++ " " ++ b)
-                    (nl ++ " | ") brs ++ nl ++ "end" ++ nl)
-    | None =>
-      "Case(" ++ string_of_inductive ind ++ "," ++ string_of_nat i ++ "," ++ string_of_term t ++ ","
-              ++ string_of_list (fun b => string_of_term (snd b)) brs ++ ")"
-    end
-  | tProj (mkInd mind i as ind, pars, k) c =>
-    match lookup_ind_decl mind i with
-    | Some oib =>
-      match nth_error oib.(ind_projs) k with
-      | Some (na, _) => print_term_deboxed Γ false false c ++ ".(" ++ na ++ ")"
-      | None =>
-        "UnboundProj(" ++ string_of_inductive ind ++ "," ++ string_of_nat i ++ "," ++ string_of_nat k ++ ","
-                       ++ print_term_deboxed Γ true false c ++ ")"
-      end
-    | None =>
-      "UnboundProj(" ++ string_of_inductive ind ++ "," ++ string_of_nat i ++ "," ++ string_of_nat k ++ ","
-                     ++ print_term_deboxed Γ true false c ++ ")"
-    end
+  Definition get_shift (n : nat) (g : list bool) :=
+    List.count_occ Bool.bool_dec (List.firstn (1+n) g) true.
+
+  Fixpoint debox (g : list bool) (t : term) :=
+    match t with
+    | tRel i => tRel (i - get_shift i g)
+    | tEvar ev args => tEvar ev (List.map (debox g) args)
+    | tLambda na M => if na.(binder_dummy) then
+                       debox (true :: g) M
+                     else tLambda na (debox (false :: g) M)
+    | tApp u v => match v with
+                 | tBox => debox g u
+                 | _ => tApp (debox g u) (debox g v)
+                 end
+    | tLetIn na b b' => tLetIn na (debox g b) (debox (false :: g) b')
+    | tCase ind c brs =>
+      let brs' := List.map (on_snd (debox g)) brs in
+      tCase ind (debox g c) brs'
+    | tProj p c => tProj p (debox g c)
+    | tFix mfix idx =>
+      let mfix' := List.map (map_def (debox g)) mfix in
+      tFix mfix' idx
+    | tCoFix mfix idx =>
+      let comfix' := List.map (map_def (debox g)) mfix in
+      tCoFix comfix' idx
+    | tBox => t
+    | tVar _ => t
+    | tConst _ => t
+    | tConstruct _ _ => t
+    end.
+
+  Definition print_term_deboxed (Γ : context) (top : bool) (inapp : bool) (t : term) : string := print_term Γ top inapp (debox [] t).
+
+  (* Fixpoint print_term_deboxed (Γ : context) (top : bool) (inapp : bool) (t : term) {struct t} := *)
+  (* match t with *)
+  (* | tBox => "" *)
+  (* | tRel n => *)
+  (*   match nth_error Γ n with *)
+  (*   | Some {| decl_name := na |} => *)
+  (*     match na with *)
+  (*     | nAnon => "Anonymous (" ++ string_of_nat n ++ ")" *)
+  (*     | nNamed id => id *)
+  (*     end *)
+  (*   | None => "UnboundRel(" ++ string_of_nat n ++ ")" *)
+  (*   end *)
+  (* | tVar n => "Var(" ++ n ++ ")" *)
+  (* | tEvar ev args => "Evar(" ++ string_of_nat ev ++ "[]" (* TODO *)  ++ ")" *)
+  (* | tLambda na body => *)
+  (*   let na' := fresh_name Γ na t in *)
+  (*   if (binder_dummy na) then *)
+  (*     parens top (print_term_deboxed (vass na' :: Γ) true false body) *)
+  (*   else parens top ("fun" ++ " " ++ string_of_name na' *)
+  (*                               ++ " => " ++ print_term_deboxed (vass na' :: Γ) true false body) *)
+  (* | tLetIn na def body => *)
+  (*   let na' := fresh_name Γ na t in *)
+  (*   parens top ("let" ++ string_of_name na' ++ *)
+  (*                     " := " ++ print_term_deboxed Γ true false def ++ " in " ++ nl ++ *)
+  (*                     print_term_deboxed (vdef na' def :: Γ) true false body) *)
+  (* | tApp f l => *)
+  (*   match l with *)
+  (*   | tBox => parens (top || inapp) (print_term_deboxed Γ false true f) *)
+  (*   | _ => parens (top || inapp) (print_term_deboxed Γ false true f ++ " " ++ print_term_deboxed Γ false false l) *)
+  (*   end *)
+  (* | tConst c => c *)
+  (* | tConstruct (mkInd i k as ind) l => *)
+  (*   match lookup_ind_decl i k with *)
+  (*   | Some oib => *)
+  (*     match nth_error oib.(ind_ctors) l with *)
+  (*     | Some (na, _, _) => na *)
+  (*     | None => *)
+  (*       "UnboundConstruct(" ++ string_of_inductive ind ++ "," ++ string_of_nat l ++ ")" *)
+  (*     end *)
+  (*   | None => *)
+  (*     "UnboundConstruct(" ++ string_of_inductive ind ++ "," ++ string_of_nat l ++ ")" *)
+  (*   end *)
+  (* | tCase (mkInd mind i as ind, pars) t brs => *)
+  (*   match lookup_ind_decl mind i with *)
+  (*   | Some oib => *)
+  (*     let fix print_branch Γ arity br {struct br} := *)
+  (*         match arity with *)
+  (*           | 0 => "=> " ++ print_term_deboxed Γ true false br *)
+  (*           | S n => *)
+  (*             match br with *)
+  (*             | tLambda na B => *)
+  (*               let na' := fresh_name Γ na br in *)
+  (*               string_of_name na' ++ "  " ++ print_branch (vass na' :: Γ) n B *)
+  (*             | t => "=> " ++ print_term_deboxed Γ true false br *)
+  (*             end *)
+  (*           end *)
+  (*       in *)
+  (*       let brs := map (fun '(arity, br) => *)
+  (*                         print_branch Γ arity br) brs in *)
+  (*       let brs := combine brs oib.(ind_ctors) in *)
+  (*       parens top ("match " ++ print_term_deboxed Γ true false t ++ *)
+  (*                   " with " ++ nl ++ *)
+  (*                   print_list (fun '(b, (na, _, _)) => na ++ " " ++ b) *)
+  (*                   (nl ++ " | ") brs ++ nl ++ "end" ++ nl) *)
+  (*   | None => *)
+  (*     "Case(" ++ string_of_inductive ind ++ "," ++ string_of_nat i ++ "," ++ string_of_term t ++ "," *)
+  (*             ++ string_of_list (fun b => string_of_term (snd b)) brs ++ ")" *)
+  (*   end *)
+  (* | tProj (mkInd mind i as ind, pars, k) c => *)
+  (*   match lookup_ind_decl mind i with *)
+  (*   | Some oib => *)
+  (*     match nth_error oib.(ind_projs) k with *)
+  (*     | Some (na, _) => print_term_deboxed Γ false false c ++ ".(" ++ na ++ ")" *)
+  (*     | None => *)
+  (*       "UnboundProj(" ++ string_of_inductive ind ++ "," ++ string_of_nat i ++ "," ++ string_of_nat k ++ "," *)
+  (*                      ++ print_term_deboxed Γ true false c ++ ")" *)
+  (*     end *)
+  (*   | None => *)
+  (*     "UnboundProj(" ++ string_of_inductive ind ++ "," ++ string_of_nat i ++ "," ++ string_of_nat k ++ "," *)
+  (*                    ++ print_term_deboxed Γ true false c ++ ")" *)
+  (*   end *)
 
 
-  | tFix l n =>
-    parens top ("let fix " ++ print_defs print_term_deboxed Γ l ++ nl ++
-                          " in " ++ List.nth_default (string_of_nat n) (map (string_of_name ∘ dname) l) n)
-  | tCoFix l n =>
-    parens top ("let cofix " ++ print_defs print_term_deboxed Γ l ++ nl ++
-                              " in " ++ List.nth_default (string_of_nat n) (map (string_of_name ∘ dname) l) n)
-  end.
+  (* | tFix l n => *)
+  (*   parens top ("let fix " ++ print_defs print_term_deboxed Γ l ++ nl ++ *)
+  (*                         " in " ++ List.nth_default (string_of_nat n) (map (string_of_name ∘ dname) l) n) *)
+  (* | tCoFix l n => *)
+  (*   parens top ("let cofix " ++ print_defs print_term_deboxed Γ l ++ nl ++ *)
+  (*                             " in " ++ List.nth_default (string_of_nat n) (map (string_of_name ∘ dname) l) n) *)
+  (* end. *)
 
 
 End print_term.

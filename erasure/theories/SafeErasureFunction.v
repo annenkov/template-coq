@@ -298,7 +298,7 @@ Program Definition flag_of_type (Sigma : PCUICAst.global_env_ext) (HΣ : ∥wf_e
   else ret false.
 Next Obligation. sq; eauto. Qed.
 Next Obligation. destruct Ht. sq. eauto using typing_wf_local. Qed.
-Next Obligation. destruct Ht. sq. left. eexists;eauto. Qed.
+Next Obligation. left. assumption. Qed.
 
 
 (* Program Definition is_erasable (Sigma : PCUICAst.global_env_ext) (HΣ : ∥wf_ext Sigma∥) (Gamma : context) (HΓ : ∥wf_local Sigma Gamma∥) (t : PCUICAst.term) : *)
@@ -441,7 +441,8 @@ Section Erase.
       ; erase Γ (tConstruct kn k u) Ht _ := ret (E.tConstruct kn k)
       ; erase Γ (tProd na b t) Ht _ := ret E.tBox
       ; erase Γ (tLambda na b t) Ht _ :=
-                           t' <- erase (vass na b :: Γ) t _;;                                                 let dummy := match (flag_of_type Σ HΣ Γ b _) with
+          t' <- erase (vass na b :: Γ) t _;;
+             let dummy := match (flag_of_type Σ HΣ Γ b _) with
                                        | Checked true => true
                                        | _ => false
                                        end in
