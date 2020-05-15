@@ -350,13 +350,14 @@ let rec run_template_program_rec ~poly ?(intactic=false) (k : Environ.env * Evd.
           k (env, evm, EConstr.to_constr evm t)) in  (* todo better *)
     ignore (Obligations.add_definition ~name:ident ~term:c cty ctx ~poly ~kind ~hook obls)
 
-  | TmQuote (false, trm) ->
+  | TmQuote (false, trm, _) ->
     (* user should do the reduction (using tmEval) if they want *)
     let qt = TermReify.quote_term env trm
     in k (env, evm, qt)
-  | TmQuote (true, trm) ->
-    let qt = TermReify.quote_term_rec env trm in
-    k (env, evm, qt)
+  | TmQuote (true, trm, bypass) ->
+     let bypass = unquote_bool (reduce_all env evm bypass) in
+     let qt = TermReify.quote_term_rec bypass env trm in
+     k (env, evm, qt)
   | TmQuoteInd (name, strict) ->
        let name = unquote_string (reduce_all env evm name) in
        let (dp, nm) = Quoted.split_name name in

@@ -160,7 +160,7 @@ type template_monad =
   | TmCurrentModPath
 
     (* quoting *)
-  | TmQuote of bool * Constr.t  (* only Prop *)
+  | TmQuote of bool * Constr.t * Constr.t (* arguments: recursive * term * bypass opacity *)  (* only Prop *)
   | TmQuoteInd of Constr.t * bool (* strict *)
   | TmQuoteConst of Constr.t * Constr.t * bool (* strict *)
   | TmQuoteUnivs
@@ -294,14 +294,14 @@ let next_action env evd (pgm : constr) : template_monad * _ =
 
   else if eq_gr ptmQuote then
     match args with
-    | _::trm::[] ->
-       (TmQuote (false,trm), universes)
-    | _ -> monad_failure "tmQuote" 2
+    | _::trm::bypass::[] ->
+       (TmQuote (false,trm,bypass), universes)
+    | _ -> monad_failure "tmQuote" 3
   else if eq_gr ptmQuoteRec then
     match args with
-    | _::trm::[] ->
-       (TmQuote (true,trm), universes)
-    | _ -> monad_failure "tmQuoteRec" 2
+    | _::trm::bypass::[] ->
+       (TmQuote (true,trm,bypass), universes)
+    | _ -> monad_failure "tmQuoteRec" 3
 
   else if eq_gr ptmQuoteInductive then
     match args with

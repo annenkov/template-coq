@@ -206,9 +206,9 @@ Inductive demoList (A : Set) : Set :=
 (** Putting the above commands in monadic program *)
 Notation inat :=
   {| inductive_mind := "Coq.Init.Datatypes.nat"; inductive_ind := 0 |}.
-Run TemplateProgram (tmBind (tmQuote (3 + 3)) tmPrint).
+Run TemplateProgram (tmBind (tmQuote (3 + 3) true) tmPrint).
 
-Run TemplateProgram (tmBind (tmQuoteRec add) tmPrint).
+Run TemplateProgram (tmBind (tmQuoteRec add true) tmPrint).
 
 Definition printInductive (name  : ident): TemplateMonad unit :=
   (tmBind (tmQuoteInductive name) tmPrint).
@@ -237,7 +237,7 @@ Print foo5.
 
 
 Run TemplateProgram (t <- tmLemma "foo44" nat ;;
-                     qt <- tmQuote t ;;
+                     qt <- tmQuote t true;;
                      t <- tmEval all t ;;
                      tmPrint qt ;; tmPrint t).
 Next Obligation.

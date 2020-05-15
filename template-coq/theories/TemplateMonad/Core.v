@@ -40,9 +40,9 @@ Cumulative Inductive TemplateMonad@{t u} : Type@{t} -> Prop :=
 
 (* Quoting and unquoting commands *)
 (* Similar to Quote Definition ... := ... *)
-| tmQuote : forall {A:Type@{t}}, A  -> TemplateMonad Ast.term
+| tmQuote : forall {A:Type@{t}}, A ->  bool (* bypass opacity? *)-> TemplateMonad Ast.term
 (* Similar to Quote Recursively Definition ... := ...*)
-| tmQuoteRec : forall {A:Type@{t}}, A  -> TemplateMonad program
+| tmQuoteRec : forall {A:Type@{t}}, A -> bool (* bypass opacity? *)  -> TemplateMonad program
 (* Quote the body of a definition or inductive. Its name need not be fully qualified *)
 | tmQuoteInductive : qualid -> TemplateMonad mutual_inductive_body
 | tmQuoteUniverses : TemplateMonad ConstraintSet.t
@@ -87,13 +87,13 @@ Definition tmAxiom id := tmAxiomRed id None.
 Definition tmDefinition id {A} t := @tmDefinitionRed_ false id None A t.
 
 (** Don't remove. Constants used in the implem of the plugin *)
-Definition tmTestQuote {A} (t : A) := tmQuote t >>= tmPrint.
+Definition tmTestQuote {A} (t : A) := tmQuote t true >>= tmPrint.
 
-Definition tmQuoteDefinition id {A} (t : A) := tmQuote t >>= tmDefinition id.
+Definition tmQuoteDefinition id {A} (t : A) := tmQuote t true >>= tmDefinition id.
 Definition tmQuoteDefinitionRed id rd {A} (t : A)
   := tmEval rd t >>= tmQuoteDefinition id.
 Definition tmQuoteRecDefinition id {A} (t : A)
-  := tmQuoteRec t >>= tmDefinition id.
+  := tmQuoteRec t true >>= tmDefinition id.
 
 Definition tmMkDefinition id (tm : term) : TemplateMonad unit
   := t' <- tmUnquote tm ;;

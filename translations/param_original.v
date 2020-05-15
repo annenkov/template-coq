@@ -158,9 +158,9 @@ Definition tsl_mind_body (E : tsl_table) (mp : string) (kn : kername)
 Defined.
 
 
-Run TemplateProgram (typ <- tmQuote (forall A, A -> A) ;;
+Run TemplateProgram (typ <- tmQuote (forall A, A -> A) true;;
                      typ' <- tmEval all (tsl_rec1 [] typ) ;;
-                     tm <- tmQuote (fun A (x : A) => x) ;;
+                     tm <- tmQuote (fun A (x : A) => x) true;;
                      tm' <- tmEval all (tsl_rec1 [] tm) ;;
                      tmUnquote (tApp typ' [tm]) >>= print_nf).
 
@@ -271,7 +271,7 @@ Module Axioms.
   Definition UIP := forall A (x y : A) (p q : x = y), p = q.
 
 
-  Run TemplateProgram (tmQuoteRec UIP >>= tmPrint).
+  Run TemplateProgram (tmQuoteRec UIP true >>= tmPrint).
 
   Run TemplateProgram (TC <- TranslateRec emptyTC UIP ;;
                        tmDefinition "eqTC" TC).

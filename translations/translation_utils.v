@@ -155,7 +155,7 @@ Definition Translate {tsl : Translation} (ΣE : tsl_context) (id : ident)
 Definition Implement {tsl : Translation} (ΣE : tsl_context)
            (id : ident) (A : Type)
   : TemplateMonad (tsl_context) :=
-  tA  <- tmQuote A ;;
+  tA  <- tmQuote A true ;;
   match tsl_ty with
   | None => tmFail "No implementation of tsl_ty provided for this translation."
   | Some tsl_ty => 
@@ -318,7 +318,7 @@ Definition tsl_kn (tsl_ident : ident -> ident) (kn : kername) mp
 
 
 Definition TranslateRec {tsl : Translation} (ΣE : tsl_context) {A} (t : A) := 
-  p <- tmQuoteRec t ;;
+  p <- tmQuoteRec t true ;;
   tmPrint "~~~~~~~~~~~~~~~~~~" ;;
   monad_fold_left (fun ΣE '(kn, decl) =>
     print_nf ("Translating " ++ kn) ;;

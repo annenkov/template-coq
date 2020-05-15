@@ -21,11 +21,18 @@ MetaCoq Erase (exist _ 0 (eq_refl) : {x : nat | x = 0}).
 (* (* *)
 (* Environment is well-formed and exist nat (fun x : nat => eq nat x O) O (eq_refl nat O):sig nat (fun x : nat => eq nat x O) erases to: *)
 (* (fun f => f) (exist ∎ ∎ O ∎) *)
-(* *) *)
+ (* *) *)
+
+(* Erase and print with annotations *)
+MetaCoq Erase Annotate (exist _ 0 (eq_refl) : {x : nat | x = 0}).
+(* (fun f => f) (exist (TYPE) (TYPE) O (PROP)) *)
+
 MetaCoq Erase (3 + 1).
 
 Universe i.
 MetaCoq Erase ((fun (X : Set) (x : X) => x) nat).
+
+MetaCoq Erase Annotate ((fun (X : Set) (x : list X) => x) nat).
 
 (** Check that optimization of singleton pattern-matchings work *)
 MetaCoq Erase ((fun (X : Set) (x : X) (e : x = x) =>
